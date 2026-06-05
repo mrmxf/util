@@ -1,0 +1,1036 @@
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+# This file is part of clog.
+---
+# yamllint disable rule:colons
+#                                   _                                          _ 
+#   __   ___   _ _   ___       __  | |  ___   __ _       _  _   __ _   _ __   | |
+#  / _| / _ \ | '_| / -_)  _  / _| | | / _ \ / _` |  _  | || | / _` | | '  \  | |
+#  \__| \___/ |_|   \___| (_) \__| |_| \___/ \__, | (_)  \_, | \__,_| |_|_|_| |_|
+#                                            |___/       |__/                    
+### when clog starts it uses these config values. 
+###    1. clog searches for `clog.yaml` in each `clog.clogrc.search-order` folder
+###    2. for every match, the config is overlaid on previous configs
+###    3. recommended order: machine config, user config, project config
+
+#                        ⇓⇓⇓⇓⇓⇓⇓           ⇓⇓⇓⇓
+# ALL YAML KEYS ARE ⇒⇒ lowercase ⇔ with hyphens ⇐⇐ (not underscores) only.
+#                        ⇑⇑⇑⇑⇑⇑⇑           ⇑⇑⇑⇑
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+# Kfg controls the configuration of clog (or anything using clog/Kfg)
+#   _  __   __         
+#  | |/ /  / _|   __ _ 
+#  | ' /  | |_   / _` |
+#  | . \  |  _| | (_| |
+#  |_|\_\ |_|    \__, |
+#                |___/ 
+kfg:
+  app-key: clog
+  # path to the yaml file defining release history - see semver package
+  releases-path: "releases.yaml"
+  # try to load the following files (in order) to overlay configs
+  # NOTE - koanf gets unhappy if relative paths start with "./"
+  try-paths:
+    - /var/clogrc/clog.yaml
+    - $HOME/.config/clogrc/clog.yaml
+    - $HOME/.clog.yaml
+    - clogrc/clog.yaml
+    - .clog.yaml
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+# clog.xxx is auto-loaded into the my.App structure
+#        _              
+#   __  | |  ___   __ _ 
+#  / _| | | / _ \ / _` |
+#  \__| |_| \___/ \__, |
+#                 |___/ 
+clog:
+  # path to the yaml file defining release history - see semver package
+  releases-path: "releases.yaml"  # release & build tracking
+  # path to a bash/zsh file that stashes variables between job stages
+  stash-path: "tmp/BC-stash.yaml"
+  # these are the ENV variables that are searched for by various tools
+  # override these to change the actual ENV variables used
+  env:
+  jumbo:                        # clog Jumbo --help for font & style commands
+    font: small
+    sample: www.mrmxf.com
+  log:           
+    level: debug                # debug | info | warn | error - all go to stdErr
+    style: pretty               # plain | pretty | json - this sets the default
+
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+#        _                   ___   _                 _
+#   __  | |  ___   __ _     / __| | |_    ___   __  | |__
+#  / _| | | / _ \ / _` |   | (__  | ' \  / -_) / _| | / /
+#  \__| |_| \___/ \__, |    \___| |_||_| \___| \__| |_\_\
+#                 |___/
+check:
+# ▬▬▬ pre-build check - generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+  pre-build:
+    blocks:
+      - finally: clog BC stashLog -1 check -2 pre-build -I "        branch    $(clog BC git branch)"
+      - finally: clog BC stashLog -1 check -2 pre-build -I "       tag-ref    $(clog BC git tag ref)"
+      - finally: clog BC stashLog -1 check -2 pre-build -I "      tag-prod    $(clog BC git tag prod)"
+      - finally: clog BC stashLog -1 check -2 pre-build -I "    tag-origin    $(clog BC git tag origin)"
+      - try: '[[ "$(clog BC git tag origin)" == "$(clog BC git tag ref)" ]]'
+        ok:    clog BC stashLog -1 check -2 pre-build  -3 "origin tag" -I "Ok  tag-origin == tag-ref"
+        catch: clog BC stashLog -1 check -2 pre-build -3 "origin tag" -W "    tag-origin != tag-ref"
+      - finally: clog BC stashLog -1 check -2 pre-build -I "     hash-head    $(clog BC git hash head)"
+      - finally: clog BC stashLog -1 check -2 pre-build -I "   hash-origin    $(clog BC git hash origin)"
+      - try:   clog BC git tree clean
+        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree clean"  -I "Ok working tree clean"
+        catch: |
+          XIT=0; FLAG="-W"
+          clog BC is build prod && XIT=1 && FLAG="-E"
+          clog BC stashLog -1 check -2 pre-build -3 "tree clean" $FLAG "   working tree NOT clean"
+          exit $XIT
+      - try:   clog BC git tree ahead XIT=0; FLAG="-E"
+        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree ahead" -I "Ok working tree not ahead of origin"
+        catch: clog BC stashLog -1 check -2 pre-build -3 "tree ahead" -W "   working tree is ahead of origin"
+      - try:   clog BC git tree behind
+        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree behind" -I "Ok working tree not behind origin"
+        catch: clog BC stashLog -1 check -2 pre-build -3 "tree behind" -W "   working tree is behind origin"
+      - try:   clog BC git tree unstaged
+        ok:    clog BC stashLog -1 check -2 pre-build -3 "unstaged changes" -I "Ok working tree has no dangling changes"
+        catch: clog BC stashLog -1 check -2 pre-build -3 "unstaged changes" -W "   working tree has unstaged changes"
+
+# ▬▬▬▬ golang checker generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+  golang:
+    blocks:
+      - name: Static Check
+        try: |
+          which staticcheck 2>&1 >/dev/null
+          [ $? -gt 0 ]&& clog BC stashLog -1 check -2 golang -3 "staticcheck" -W "   staticcheck not installed" && exit 0
+          staticcheck ./... | exit 1
+        ok: clog BC stashLog -1 check -2 golang -3 "staticcheck" -S "   staticcheck passed"
+        catch: |
+          clog BC stashLog -1 check -2 golang -3 "staticcheck" -S "   staticcheck found problems"
+          echo $STDOUTERR
+# ▬▬▬▬ hugo checker generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+  hugo:
+    blocks:
+      - name: wsl Zone.Identifier files
+        try: |
+          [ -n "$(find . -name '*Zone.Identifier')"]
+        ok: clog BC stashLog -1 check -2 hugo -3 "Zone.Identifier" -I "no Zone.Identifier present"
+        catch: |
+          eval "$(clog Crayon)"
+          n=$(find . -name '*Zone.Identifier'|wc -l)
+          clog   BC stashLog -1 check -2 hugo -3 "Zone.Identifier" -E "Delete $n Zone.Identifier files made by Windows"
+          while IFS= read -r line; do
+            fn="$(echo ${line:2}|cut  -d ":" -f "1")"
+            id="$(echo ${line:2}|cut  -d ":" -f "2")"
+            clog BC stashLog -1 -2 hugo -3 "Zone.Identifier"  check -E "      ❌$cF $fn$cX:$cW$id"
+          done < <(find . -name '*Zone.Identifier')
+          clog   BC is build prod && exit 1
+
+      - name: golang version
+        try: clog BC semver "$(clog project needs golang)"  "$(clog project has golang)"
+        ok: clog  BC stashLog -1 check -2 hugo -3 "golang version" -I "golang $(clog project has golang) is up to date"
+        catch: |
+          clog    BC stashLog -1 check -2 hugo -3 "golang version" -W "golang: bad version. go.mod needs $(clog project needs golang), got $(clog project has golang)"
+
+      - name: hugo version
+        try: clog BC semver "$(clog project needs hugo)"  "$(clog project has hugo)"
+        ok: clog  BC stashLog -1 check -2 hugo -3 "hugo version" -I "hugo $(clog project has hugo) is up to date"
+        catch:  |
+          clog    BC stashLog -1 check -2 hugo -3 "hugo version" -W "hugo: bad version. Need $(clog project needs hugo), got $(clog project has hugo)"
+
+      - name: git-lfs version
+        try:  clog BC semver "$(clog project has git-lfs)"     "$(clog project needs git-lfs)"
+        ok: clog BC stashLog -1 check -2 hugo -3 "git-lfs version" -I "git-lfs $(clog project has git-lfs) good"
+        catch: |
+          lfs="$(clog project has git-lfs)"
+          [ -z "$lfs" ] && clog BC stashLog -1 check -2 hugo -3 "git-lfs version" -W "git-lfs not installed"
+          [ -n "$lfs" ] && clog BC stashLog -1 check -2 hugo -3 "git-lfs version" -W "git-lfs: bad version. Need $(clog project needs git-lfs), got $(clog project has git-lfs)"
+
+      - name: docker?
+        try: which docker 2>/dev/null
+        ok: clog BC stashLog -1 check -2 hugo -3 docker -I "docker ok"
+        catch: |
+          clog BC stashLog -1 check -2 hugo -3 docker -E "docker not on path"
+          clog BC is build prod && exit 1
+
+      - name: theme replacements
+        try: |
+          themeReplacements="$(yq -r '.replacements' config/_default/module.yaml)"
+          [[ "null" == "$themeReplacements" ]] && exit 0
+          exit 1
+        ok: clog BC stashLog -1 check -2 hugo -3 theme -I "theme will be pulled from github"
+        catch: |
+          activeReplacement="$(yq -r '.replacements' config/_default/module.yaml)"
+          clog BC stashLog -1 check -2 hugo -3 theme -E "local theme replacement kill github action ($activeReplacement)"
+          exit 1
+
+      - name: remote production ref had been specified
+        try:  '[ -z "$(clog BC git tag prod)" ] && exit 1 || exit 0'
+        ok: clog    BC stashLog -1 check -2 hugo -3 "remote ref" -I "tag($(clog BC git tag prod)) specified for production"
+        catch: clog BC stashLog -1 check -2 hugo -3 "remote ref" -E "No flow:main build:prod exists in releases.yaml";exit 1
+
+      - name: remote production ref exists
+        try: |
+          tag="$(clog BC git tag prod)"
+          [ -z "$(git ls-remote --tags 2>/dev/null|grep $tag)" ] && exit 1 || exit 0
+        ok: clog     bc stashLog -1 check -2 hugo -3 "remote ref ok" -I "tag($(clog BC git tag prod)) exists at remote origin"
+        catch: 'clog bc stashLog -1 check -2 hugo -3 "remote ref ok" -E "git ls-remote --tags missing tag $(clog BC git tag prod)";exit 1'
+# ▬▬▬ tool check generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+  tools:
+      - name: golang
+        try: clog BC semver "$(clog project needs golang)" "$(clog project has golang)"
+        catch: clog BC stashLog -1 check -2 tools -3 golang -E "wrong go version. Need $(clog project needs golang)"
+      - name: yq
+        try: which yq 2>/dev/null
+        catch: clog BC stashLog -1 check -2 tools -3 yq -E "yq not present.  $(clog project needs golang)"
+      - name: aws cli v2
+        try: |
+          vv="$(aws --version 2>/dev/null|grep -oE '\/[0-9]+\.[0-9]+\.[0-9]+'|head -1|tr -d [/]|head -c 2)"
+          [[ "2." != "$vv)" ]] && exit 1
+        catch:  clog BC stashLog -1 check -2 tools -3 aws -E "aws cli v2 not present."
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+#               _                       _
+#   ||_  _ _   (_)  _ __   _ __   ___  | |_   ___
+#  (_-< | ' \  | | | '_ \ | '_ \ / -_) |  _| (_-<
+#  / _/ |_||_| |_| | .__/ | .__/ \___|  \__| /__/
+#   ||             |_|    |_|
+snippets:
+  # ▼▼▼ bc-override snippets ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #        _         
+  #   ||_ | |__   __ 
+  #  (_-< | '_ \ / _|
+  #  / _/ |_.__/ \__|
+  #   ||             
+  bc-artifacts: echo "tmp/artifacts"
+  bc-main-prod-tag: yq -r 'first(.[] | select(.type=="main" and .build=="prod") | .version)' "$(clog BC releases yaml)"
+  bc-main-repo: echo "metarex-media/www-metarex-media"
+  bc-log-divider: eval "$(clog Crayon)";for i in {1..8};do HR="$HR\e[09${i}m▬▬▬▬▬▬▬▬▬$cE|";done;printf "$HR$cX\n"
+  # worker function instagram ------------------------------------------------------------------------------------------
+  bc-instagram: |
+    eval "$(clog Crayon)" # setting & highlights
+    clog BC stashLog -1 build -2 instagram  -W  "    ✖️ $cC clog instagram$cW not implemented yet$cX - come back later"
+    exit 0
+  # WORKER v0.8.6 - checkout the main-prod version of a repo -----------------------------------------------------------
+  bc-main-prod-checkout: |
+    eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
+    TAG="$(clog bc-main-prod-tag)"
+
+    ERR=0
+    clog BC stashLog -1 build -2 "prod-checkout" -3 start -I "$STEP.$(((++s))).⚒️  bc-main-prod-checkout  $phase→$cF setup queries for daily build/"
+    [ -z "$TAG" ]&&clog BC stashLog -2 "prod-checkout" -3 "tag" -E "releases.yaml has no entry with type=main build=prod"&&exit (((++ERR)))
+    git checkout "$TAG"
+    [ $? -gt 0 ]&&clog  BC stashLog -2 "prod-checkout" -3 "checkout" -E "cannot checkout to tag $cE$TAG"&&exit (((++ERR)))
+
+    # we are now checked out to the production snapshot $TAG
+    # releases.yaml and scripts
+
+  # ▼▼▼ bc-deploy-s3 ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  bc-deploy-s3: |
+    # $YAML=array with many lines like this
+    #     - {src:"tmp/clog-amd-lnx",    dst:"$BKT/clog-amd-lnx",    cHi:"$cLnx",cFn:"$cAmd"}
+    fAwsCp() {
+      # this function will perform aws cp on each file with cHighlight and cFilename
+      local src dst colHi colFn
+      src="$1";   shift
+      dst="$1";   shift
+      colHi="$1"; shift
+      colFn="$1"; shift
+
+      [ ! -f "$src" ] && clog BC stashLog -1 build -2 deploy-s3 -3 pre-flight -W "$colHi(skip) $colFn$src$cX - not found" && return
+
+      size="$(du -sh $src|grep -oE '([0-9\.]+[KMGTP])')"
+      clog  BC stashLog -1 build -2 deploy-s3 -3 aws-cp -I "$colHi($size)$colFn  $src$cX → s3://$dst"
+      aws s3 cp --quiet "$src" "s3://$dst"
+      return $?
+    }
+    # --------------------------------------------------------------------------
+    eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
+    flow="$1"
+    phase="$2"
+
+    ERR=0
+    vAws="$(aws --version 2>/dev/null|grep -oE '[0-9]+\.[0-9]+\.[0-9]+'|head -1)"
+    ((ERR+=$?)); [ $ERR -gt 0 ] && clog BC stashLog -1 build -2 deploy-s3 -3 aws-version  -E "bc-deploy-s3 cannot find aws cli"
+
+    #check YAML not empty
+    [ -z "$YAML" ] && clog BC stashLog -1 build -2 deploy-s3 -3 yaml  -E "bc-deploy-s3 has no YAML entries to parse" && ((ERR++))
+
+    #check YAML parses and is an array with length
+    yLen="$(echo "$YAML"|yq 'length' 2>/dev/null)"
+    [ "$?" -gt 0    ] && clog BC stashLog -1 build -2 deploy-s3 -3 yaml -E "bc-deploy-s3 YAML cannot be parsed" && ((ERR++))
+    [ "$yLen" -eq 0 ] && clog BC stashLog -1 build -2 deploy-s3 -3 yaml -E "bc-deploy-s3 YAML array has zero length" && ((ERR++))
+
+    # in github actions, the bucket env is S3_BUCKET unless overridden
+    [ -n "$GITHUB_ACTIONS" ] && [ -z "$CLOG_BUCKET" ] && CLOG_BUCKET="$S3_BUCKET"
+
+    # --------------------------------------------------------------------------
+    clog BC stashLog -1 build -2 deploy-s3 -3 yaml -I "🚀 deploy-s3 $cC$PROJECT $cX using aws cli $cF $vAws$cX for ${#SRC[@]} files"
+
+    n=0
+    while [ $n -lt $yLen ]; do
+      SRC="$(printf "%s" "$YAML"|yq -r ".[$n].src")"
+      DST="$(printf "%s" "$YAML"|yq -r ".[$n].dst")"
+      fAwsCp "$SRC" "$DST" "" ""; ERR=$((ERR+$?))
+      ((n++))
+    done
+    
+    if [ $ERR -gt 0 ]; then
+      clog BC stashLog -1 build -2 deploy-s3 -3 status -E "❌ failed with $ERR errors"
+      exit $(((ERR+=$?)))
+    fi
+    clog BC stashLog -1 build -2 deploy-s3 -3 status -S "✅ ok"
+    exit 0
+
+  # ▼▼▼ bc-hugo ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  bc-hugo: |
+    eval "$(clog Source project config); $(clog Crayon)"  # setting & highlights
+    flow="$1"
+    phase="$2"
+
+    ERR=0
+    clog BC stashLog -1 build -2 hugo -3 start -I "⚒️  build hugo $phase→$cF kodata/"
+
+    [ ! -d content ] && clog BC stashLog -1 build -2 hugo -3 content -E "⚒️  build hugo no content/ folder" && exit 1
+    clog BC stashLog -1 build -2 hugo -3 purge -I "$STEP.$(((++s))). purge$cF kodata/$cX, build site"
+    rm -rf kodata/*
+
+    opt="$opt --buildDrafts --buildFuture --buildExpired"
+    clog BC is build prod  && opt=""
+    clog BC stashLog -1 build -2 hugo -3 hugoBuild -I "$STEP.$(((++s))). build hugo $phase→${cF}kodata/$cC $opt"
+    hugo build --minify --logLevel info $opt
+    ((ERR+=$?))
+
+    if [ $ERR -gt 0 ]; then
+      clog BC stashLog -1 build -2 hugo -3 hugoBuild -E "❌ hugo build to kodata/ failed with $ERR errors"
+      exit $ERR
+    fi
+    clog BC stashLog -1 build -2 hugo -3 hugoBuild -S "✅ hugo build to kodata/ ok"
+    
+  # ▼▼▼ bc-golang ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #  $EXE   is the executable name - overrides the default of $PROJECT
+  #  $TITLE is the title string for semver
+  #  artifacts appear in tmp/
+  #  you may have to make a project copy of this function to make semver work
+  bc-golang: |
+    fGoBuild(){
+      local gofile=$(printf "%-30s" "$1"); shift
+      local tag="$1"; shift
+      local goos="$1"; shift
+      local goarch="$1"; shift
+      local hash="$1"; shift
+      local buildDate
+      local buildSuffix="$1"; shift
+      local buildAppName="$1"; shift
+      local buildAppTitle="$1"; shift
+      local linkerDataSemverPath="$1"; shift
+      
+      # get build type
+      build="$(clog BC releases build)"
+      # get ISO date
+      printf -v buildDate '%(%Y-%m-%d)T' -1
+      # remove spaces from App Title
+      buildAppTitle=$(echo "$buildAppTitle" | tr ' ' '_')
+
+        # set colors for printing logs
+      local cos="$cLnx"
+      [[ "$goos" == "darwin" ]] && cos=$cMac
+      [[ "$goos" == "windows" ]] && cos=$cWin
+      local car="$cArm"
+      [[ "$goarch" == "amd64" ]] && car=$cAmd
+
+      # determine build local OS & cpu
+      cpu="${cAmd}amd$cX" && case $(uname -m) in arm*) cpu="${cArm}arm$cX";; esac
+      case "$(uname -s)" in
+        Linux*)  bOSV=${cLnx}Linux$cX;;
+        Darwin*)  bOSV=${cMac}Mac$cX;;
+              *)  bOSV="untested:$(uname -s)";;
+      esac
+
+      # pretty format platform strings
+      pad=$((17-${#goos}-${#goarch}))
+      spaces="$(echo '----------'|head -c $pad)"
+      printf -v tPlatform "for %s %s" "$cos$goos$cX/$car$goarch$cX" "$spaces"
+      printf -v bPlatform "(built on %14s)" "$bOSV/$cpu"
+
+      # create linker data json:
+      ldi="{"
+      ldi="$ldi\"build\":\"$build\""
+      ldi="$ldi,\"tag\":\"$tag\""
+      ldi="$ldi,\"hash\":\"$hash\""
+      ldi="$ldi,\"date\":\"$buildDate\""
+      ldi="$ldi,\"suffix\":\"$buildSuffix\""
+      ldi="$ldi,\"name\":\"$buildAppName\""
+      ldi="$ldi,\"title\":\"$buildAppTitle\""
+      ldi="$ldi}"
+
+      #create linker data string
+      lds="-X $linkerDataSemverPath='$ldi'"
+
+      # prepare build message
+      buildMsg="$cos$gofile$cX $tPlatform $bPlatform"
+      clog BC stashLog -1 build -2 golang -3 fGoBuild -I "$buildMsg"
+      
+      # build with or without linker data depending on a supplied path
+      if [ -z "$linkerDataSemverPath" ]; then
+        GOOS="$goos" GOARCH="$goarch" go build -o $gofile
+        err=$?
+      else
+        GOOS="$goos" GOARCH="$goarch" go build -o $gofile -ldflags "$lds"
+        err=$?
+      fi
+
+      if [ $err -gt 0 ]; then
+        [ -n "$linkerDataSemverPath" ] &&  clog BC stashLog -1 build -2 golang -3 fGoBuild -E "Linker data string was:$cC -ldflags \"$lds\""
+        clog BC stashLog -1 build -2 golang -3 fGoBuild -E "$buildMsg ...  build failed"
+        return $err
+      fi
+      size="$(du --apparent-size --block-size=M $gofile)"
+      clog BC stashLog -1 build -2 golang -3 fGoBuild -I "$buildMsg ... $size"
+    }
+    eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
+    [ -z "$EXE" ] && clog BC stashLog -1 build -2 golang -3 gobuild -E "\$EXE must be set to the target filename" && exit 1
+    [ -z "$TITLE" ]&&clog BC stashLog -1 build -2 golang -3 gobuild -E "\$TITLE must be set to the target's printable name" && exit 1
+    ERR=0
+
+    clog BC stashLog -1 build -2 golang -3 start -I "⚒️  golang build $EXE $phase→$cF tmp/$EXE-cpu-os"
+
+    # ensure tmp folder exists
+    mkdir -p tmp
+    # todo for a production build use clog BC git hash prod
+    tag="$(   clog BC git tag ref)"        # target tag
+    branch="$(clog BC git branch)"         # current branch
+    hash="$(  clog BC git hash head)"      # use the head hash as the build hash
+    suffix="$(clog BC git suffix)"         # use the branch name as the suffix
+    app="$EXE"                             # command you type to run the app
+    title="$TITLE"                         # title of the software
+    linkerPath="$(clog BC linkerpath)"     # go tool objdump -S $EXE|grep /semver.SemVerInfo
+
+      fGoBuild tmp/$app-amd-lnx     "$tag" linux   amd64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
+    # fGoBuild tmp/$app-amd-win.exe "$tag" windows amd64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
+      fGoBuild tmp/$app-amd-mac     "$tag" darwin  amd64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
+      fGoBuild tmp/$app-arm-lnx     "$tag" linux   arm64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
+    # fGoBuild tmp/$app-arm-win.exe "$tag" windows arm64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
+      fGoBuild tmp/$app-arm-mac     "$tag" darwin  arm64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
+
+    if [ $ERR -gt 0 ]; then
+      clog BC stashLog -1 build -2 golang -3 status -E "❌ golang build failed with $ERR errors"
+      exit $ERR
+    fi
+    clog BC stashLog -1 build -2 golang -3 status -S "✅ golang build ok"
+
+  # ▼▼▼ bc-ko ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  bc-ko: |
+    eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
+
+    ERR=0
+    if clog BC is build prod; then
+      devTAG=""
+    else
+      devTAG="-dev"
+    fi
+    if clog BC is flow main; then
+      stageTAG=""
+    else
+      stageTAG="-$(clog BC releases flow)"
+    fi
+    
+    tag1="$(clog BC git tag ref)$stageTAG$devTAG" # 1.2.3 | 1.2.3-stage | 1.2.3-stage-dev
+    tag2="latest$stageTAG$devTAG"                 # latest | latest-stage | latest-dev | latest-stage-dev
+
+    clog BC stashLog -1 build -2 ko -3 start -I "⚒️  build ko →$cU hub.docker.com/$DOCKER_NS/$PROJECT:$cW$tag1$cX and$cW $tag2$cX"
+
+    # config is in .ko.yaml
+    # use the default docker repo unless told otherwise
+    [ -z "$KO_DOCKER_REPO" ] && KO_DOCKER_REPO="$DOCKER_NS"
+    export KO_DOCKER_REPO                                      # push to repo
+    export KO_CONFIG_PATH=".ko.yaml"                           # build options
+    export KO_DATA_DATE_EPOCH=$(git log -1 --format='%ct')     # date on image
+
+    wd="$(pwd)"
+    VERBOSE="" # --verbose
+    cd www-podserver/
+    ko build $VERBOSE --base-import-paths --sbom=none --tags "$tag1" --tags "$tag2" .
+    ((ERR+=$?))
+    cd "$wd"
+    if [ $ERR -gt 0 ]; then
+      clog BC stashLog -1 build -2 ko -3 status -E "❌ failed $PROJECT:$tag1 and $tag2"
+      exit $(((ERR+=$?)))
+    fi
+    clog BC stashLog -1 build -2 ko -3 status -S "✅ ok $PROJECT:$tag1 and $tag2"
+
+  # ▼▼▼ dev ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #             _
+  #   ||_    __| |  ___  __ __
+  #  (_-<   / _` | / -_) \ V /
+  #  / _/   \__,_| \___|  \_/
+  #   ||
+  dev:
+    godoc: |
+      OpenCMD="xdg-open"
+      [[ -n "$WSL_DISTRO_NAME" ]] && OpenCMD="explorer.exe"
+      [[ "$OSTYPE" == "darwin"* ]] && OpenCMD="open"
+      PORT="6060"
+      URL="http://localhost:$PORT/pkg/$(go list -m)"
+      eval "$(clog Crayon)"
+      clog Log -I "Running godoc on port $PORT"
+      godoc -http=localhost:$PORT &
+      clog Log -I "Use$cC kill $!$cX to stop or$cC ps|grep godoc$cX to list process"
+      sleep 2
+      clog Log -I "open$cU $URL$cX with$cC $OpenCMD"
+      $OpenCMD $URL
+      exit 0
+    godocslurp: |
+      eval "$(clog Crayon)"
+      DST="./tmp/kodocs"
+      PKG="$(go list -m)"
+      PORT="6060"
+      if $(which wget > /dev/null); then
+        clog Log -I "Slurping godocs into$cF $DST$cX as a static website"
+      else
+        clog Log -E "${cC}wget$cX not installed"
+        exit 1
+      fi
+      if $(wget -q --spider --timeout=2 http://localhost:$PORT); then
+        clog Log -I "Slurping $PKG with wget + refactoring to be root of fs"
+      else
+        clog Log -W "No response on port $PORT, try$cC clog dev godoc$cX"
+        exit 1
+      fi
+      mkdir -p $DST
+      rm -rf "$DST"  && mkdir -p "$DST"
+      echo "check tmp/kodocs"
+      # wget parameters
+      # (-r --recursive)(-np --no-parent)(-k --convert-links)(-p --page-requisites)
+      # (-E --adjust-extension)(-e --execute)(-P --directory-prefix)
+
+      # Download the package documentation
+      wget -r -np -k -p -E --no-host-directories --cut-dirs=2 -e robots=off -P "$DST" http://localhost:$PORT/pkg/$PKG/
+      # Download the godoc static assets (CSS, JS, etc.) to the root
+      wget -r -np -k -p -E --no-host-directories              -e robots=off -P "$DST" http://localhost:$PORT/lib/
+      if [ $? -gt 0]; then
+        clog Log -E "wget failed"
+      else
+        clog Log -I "Slurping with wget"
+      fi
+
+  # ▼▼▼ docker ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #             _              _
+  #   ||_    __| |  ___   __  | |__  ___   _ _
+  #  (_-<   / _` | / _ \ / _| | / / / -_) | '_|
+  #  / _/   \__,_| \___/ \__| |_\_\ \___| |_|
+  #   ||
+  #https://www.docker.com/blog/multi-arch-images/
+  docker:
+    initx: |
+      # install qemu to emulate arm for building
+      docker run --privileged --rm tonistiigi/binfmt --install all
+      docker buildx create --name army
+      docker buildx use army
+  # ▼▼▼ git - use BC variants if possible ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #                 _   _
+  #   ||_    __ _  (_) | |_
+  #  (_-<   / _` | | | |  _|
+  #  / _/   \__, | |_|  \__|
+  #   ||    |___/
+  git:
+    # IMPORTANT ZSH gets confused with "--" so use always use quotes to prevent null output
+    # IMPORTANT YAML may parse logical expressions into arrays of strings e.g. [ -z "foo" ]
+    # IMPORTANT use quotes carefully '[ -z "foo" ]' is a shell expression [ -z "foo" ] is an array of strings
+    branch: git branch --show-current
+    repo: |
+      url="$(git remote -v|grep 'fetch'|grep 'origin'|head -1|tail -c +7|head -c -8|xargs)"
+      [[ "git" == "${url:0:3}" ]] && echo $url|grep -oE ':([^\.]+)'|tail -c +2 && exit 0
+      [[ "http" == "${url:0:4}" ]] && echo $url|grep -oE '[^\/]\/[a-z].*'|tail -c +3 && exit 0
+      exit 1
+    # --- git hash snippets:  clog git tag <snippet> -------------------------------------------------------------------
+    hash:
+      head: git rev-list -1 HEAD
+      origin: git ls-remote --head --sort=-v:refname origin | grep $(clog BC git branch) | head -1 | head -c 40
+    # --- git message snippets:  clog git tag <snippet> ----------------------------------------------------------------
+    message:
+      latest: git log HEAD | head -5 | tail -1 | xargs
+      # this is the default snippet to return the target commit message for
+      # your project override in your project' clog.yaml
+      ref: yq -r '.[0].note' "$(clog BC releases yaml)"
+    origin: git config --get remote.origin.url
+    # --- git suffix snippets:  clog git suffix - added to a release ---------------------------------------------------
+    suffix: |
+      b="$(git branch --show-current)"
+      [[ "$b" == main ]] && echo "" || echo "$b"|tr -d '[:blank:]'
+    # --- git tag snippets:  clog git tag <snippet> --------------------------------------------------------------------
+    tag:
+      head: git tag --points-at HEAD
+      latest: git tag --sort=committerdate | tail -1
+      origin: git ls-remote --tags --sort=-v:refname origin | head -1 | grep -oE 'v{0,1}[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-0]+){0,1}'
+      # this is the default snippet to return the project's target tag
+      # override in your project' clog.yaml
+      # golang requires a 'v':
+      ref: yq -r '.[0].version' "$(clog BC releases yaml)"
+      tidy: 'echo "try:  clog BC git tag tidy"'
+    # --- git tree snippets:  clog git tree <snippet> ------------------------------------------------------------------
+    tree:
+      ahead: if [ "$(git status|grep -oE '(branch is ahead)')" ];then echo "Branch ahead - do push ";exit 1;else echo "ok";fi
+      behind: if [ "$(git status|grep -oE '(merge the remote)')" ];then echo "Branch behind - do pull";exit 1;else echo "ok";fi
+      clean: if [ "$(git status|grep -oE '(working tree clean)')" ];then echo "ok";else echo "Working tree not clean";exit 1;fi
+    unstaged: if [ "$(git status|grep -oE '(Changes not staged)')" ];then echo "Commit unstaged changes";exit 1; else echo "ok";fi
+    # deprecated - use clog BC git tag ref
+    vcode: clog BC git tag ref
+    # walk the parent repos to see if they're unclean
+    parents: |
+      eval "$(clog Inc)" # set color strings
+      root=..
+      [ -n "$GIT_WALK_REPOS_ROOT" ] && root="$GIT_WALK_REPOS_ROOT"
+      clean="  $cS clean✅$cX "
+      dirty="$cE unclean❌$cX "
+      for i in $root/* ; do
+        status="$clean"
+        xtra=""
+        if [ ! -d "$i/.git" ]; then
+          status="   $cI skip🧱 non-git folder$cT "
+        else
+          cd $i
+          [ -n "$(git status | grep "hange")" ] && status="$dirty" && xtra="$xtra❌(${cW}commit changes${cX}) "
+          clog git tree ahead >/dev/null; [ $? -gt 0 ]  && status="$dirty" && xtra="$xtra❌(${cW}push changes${cX}) "
+          clog git tree behind >/dev/null; [ $? -gt 0 ] && status="$dirty" && xtra="$xtra❌(${cW}pull updates${cX}) "
+        fi
+        printf "$status$i$cX $xtra\n"
+      done
+  # ▼▼▼ install ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #          _               _            _   _
+  #   ||_   (_)  _ _    ___ | |_   __ _  | | | |
+  #  (_-<   | | | ' \  (_-< |  _| / _` | | | | |
+  #  / _/   |_| |_||_| /__/  \__| \__,_| |_| |_|
+  #   ||
+  install:
+    # --- snippets to check install
+    # clog install have golang && echo "Yay, found it" || clog install golang
+    have:
+      aws: "      aws --version >/dev/null 2>&1"
+      clog: "    clog --version >/dev/null 2>&1"
+      curl: "    curl --version >/dev/null 2>&1"
+      docker: "docker --version >/dev/null 2>&1"
+      golang: "    go   version >/dev/null 2>&1"
+      godoc: "  which godoc       >/dev/null 2>&1"
+      golangci-lint: "golangci-lint --version >/dev/null 2>&1"
+      glab: "    glab   version >/dev/null 2>&1"
+      gh: "       gdh --version >/dev/null 2>&1"
+      hugo: "    hugo   version >/dev/null 2>&1"
+      jq: "        jq --version >/dev/null 2>&1"
+      ko: "        ko   version >/dev/null 2>&1"
+      nvm: "      nvm --version >/dev/null 2>&1"
+      slsa-verifier: "slsa-verifier version >dev/null 2>&1"
+      yarn: "    yarn --version >/dev/null 2>&1"
+      yq: "        yq --version >/dev/null 2>&1"
+    # install snippets --------------------------------------------------------
+    aws: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      [[ "$(dpkg --print-architecture)" == "amd64" ]] && awsZFB="x86_64"
+      [[ "$(dpkg --print-architecture)" == "arm64" ]] && awsZFB="aarch64"
+      fnLog "installing awsv2 $awsZFB"
+      fnLog "fetching https://awscli.amazonaws.com/awscli-exe-linux-$awsZFB.zip"
+      curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-$awsZFB.zip" -o "/tmp/awscliv2.zip"
+      cd /tmp
+      fnLog "Unzipping cli"
+      unzip -q ./awscliv2.zip
+      fnLog "running installer"
+      sudo ./aws/install --update
+      fnLog "awsv2 installed"
+
+    docker-engine: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      # Add Docker's official GPG key:
+      sudo apt-get -qq update; sudo apt-get -qq upgrade
+      sudo apt-get install -yq ca-certificates curl
+      sudo install -m 0755 -d /etc/apt/keyrings
+      sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+      sudo chmod a+r /etc/apt/keyrings/docker.asc
+      # Add the repository to Apt sources:
+      arch="$(dpkg --print-architecture)"
+      DEBy=$(. /etc/os-release && echo "$VERSION_CODENAME")
+      echo  "deb [arch=$arch signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian  $DEBy stable"|sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      sudo apt-get -qq update
+      sudo apt-get install -yq --autoremove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      sudo usermod -aG docker $USER
+      newgrp docker
+      docker run hello-world
+    golang: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      fnLog "Installing golang"
+      GOMOD_VER=$(cat go.mod 2>/dev/null | grep '^go ' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+      if [ -n "$GOMOD_VER" ]; then
+        LATEST="go${GOMOD_VER}"
+        fnLog "Using go version from go.mod: $LATEST"
+      else
+        LATEST=$(curl -sL "https://golang.org/dl/?mode=json" | jq -r '.[0].version')
+      fi
+      [ -z "$LATEST" ] || [ "$LATEST" = "null" ] && clog Log -E "could not fetch latest Go version" && exit 1
+      url="https://go.dev/dl/$LATEST.linux-amd64.tar.gz"
+      fnLog "Fetching $url"
+      dst="/tmp/golang.tar.gz"
+      curl --location --silent "$url" --output "$dst"
+      fnLog "Removing existing go/usr/local/go"
+      sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf "$dst"
+      if [ -z "$(echo $PATH|grep '/usr/local/go')" ]; then
+        fnLog "setting GOPATH, adding go & GOPATH/bin to path"
+        export GOPATH="$HOME/go"
+        echo "export GOPATH=\"$GOPATH\"" >> ~/.bashrc
+        newPath="/usr/local/go/bin:\$GOPATH/bin"
+        echo "export PATH=\$PATH:$newPath" >> ~/.bashrc
+        PATH=$PATH:$newPath
+        clog Log -W "source ~/.bashrc # to add golang to path"
+      fi
+      go version
+      fnLog "installing staticcheck"
+      go install honnef.co/go/tools/cmd/staticcheck@latest >/dev/null
+      fnLog "golang installed"
+    golang-mac: brew install go
+    godoc: |
+      go install golang.org/x/tools/cmd/godoc@latest
+    golangci-lint: |
+      curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh|sh -s -- -b $(go env GOPATH)/bin v1.60.1
+    glab: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      ARCH=$(uname -m);case $ARCH in x86_64)ARCH="amd64";;aarch64)ARCH="arm64";;*)ARCH="";;esac
+      [ -z "$ARCH" ]&&clog Log -E "unsupported architecture $cE$(uname -m)"&&exit 1
+      OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+      LATEST_URL="https://gitlab.com/api/v4/projects/34675721/releases"
+      RELEASE_INFO=$(curl -s "$LATEST_URL" | head -1)
+      VERSION=$(echo "$RELEASE_INFO" | grep -o '"tag_name":"[^"]*' | head -1| cut -d'"' -f4)
+      [ -z "$VERSION" ] && clog Log -E "Failed to get latest glab version from $LATEST_URL" && exit 1
+      FILENAME="glab_${VERSION#v}_${OS}_${ARCH}.tar.gz"
+      DST=/tmp/glab.tar.gz
+      DOWNLOAD_URL="https://gitlab.com/gitlab-org/cli/-/releases/${VERSION}/downloads/${FILENAME}"
+      clog Log -I  "curl glab@$VERSION installer from $DOWNLOAD_URL"
+      curl -sL $DOWNLOAD_URL -o $DST
+      [ $? -gt 0 ]&&clog Log -E "failed to$cC curl$cU $DOWNLOAD_URL"&&exit 1
+      cd /tmp
+      tar -xzf $DST
+      [ $? -gt 0 ]&&clog Log -E "failed to$cC tar -xzf$cF $DST"&&exit 1
+      sudo cp ./bin/glab /usr/local/bin/glab
+      [ $? -gt 0 ]&&clog Log -E "failed to$cC cp -xzf$cF /tmp/bin/glab"&&exit 1
+      v="$(glab --version)"
+      clog Log -S  "done $v"
+    glab-mac: "brew install glab"
+    gh: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      fnLog "installing gh"
+      type -p wget >/dev/null || (fnLog "install wget" && sudo apt update && sudo apt-get install wget -y)
+      sudo mkdir -p -m 755 /etc/apt/keyrings
+      fnLog "fetching keyring data"
+      wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+      sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+      fnLog "determine package($(dpkg --print-architecture)) & architecture"
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+      fnLog "apt-get update"
+      sudo apt-get update -qq
+      fnLog "apt-get install"
+      sudo apt-get install gh -y -qq
+      fnLog "gh installed"
+    gh-mac: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; } brew install gh
+    git: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      sudo apt-get install -y git-all
+    git-lfs: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+      sudo apt-get install git-lfs
+    grafana: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      fnLog "installing grafana"
+      fnLog "install dependencies"
+      sudo apt-get install -y -qq apt-transport-https software-properties-common wget
+      sudo mkdir -p /etc/apt/keyrings/
+      fnLog "fetch keyring data"
+      wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null
+      fnLog "fetch package info"
+      echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
+      fnLog "apt-get update"
+      sudo apt-get update -qq
+      fnLog "apt-get install"
+      sudo apt-get install -y grafana -qq
+      fnLog "grafana installed"
+    helm: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      # tbd mac brew install helm
+      curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+      sudo apt-get install apt-transport-https --yes
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+      sudo apt-get update
+      sudo apt-get install helm
+      helm version --template='Version: {{.Version}}' && exit 0
+      exit 1
+    homebrew: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      [[ "$(uname -m)" == "arm64" ]] && clog Log -W "arm is badly supported!"
+      sudo apt-get install -y build-essential procps curl file git
+      curl -fSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash
+    hugo: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      eval "$(clog Crayon)"
+      fnLog "installing hugo"
+      HUGO_MIN=$(grep -iA3 'hugoVersion:' config/_default/module.yaml 2>/dev/null | grep -i 'min:' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+      if [ -n "$HUGO_MIN" ]; then
+        fnLog "Using hugo version from module.yaml: $HUGO_MIN"
+        j="$(curl -L "https://api.github.com/repos/gohugoio/hugo/releases/tags/v${HUGO_MIN}")"
+      else
+        fnLog "fetching versions https://api.github.com/repos/gohugoio/hugo/releases/latest"
+        j="$(curl -L https://api.github.com/repos/gohugoio/hugo/releases/latest)"
+      fi
+      pkg=".deb"
+      arch="arm" ; [[ "$(uname -m)" == "x86_64" ]] && arch="amd64"
+      v="$(   echo $j | jq -r '.name   | ltrimstr("v")')"
+      urls="$(echo $j | jq -r '.assets | .[] | [.name, .browser_download_url] | .[1]')"
+      # get the first release with "extended" this should ignore the withdeploy options
+      url="$(echo "$urls" | grep "$v" | grep "$pkg" | grep "$arch" | grep "extended" | head -1)"
+      # echo "$urls"
+      current="$(hugo version 2>/dev/null|grep -oE '[0-9]\.[0-9]+\.[0-9]')"
+      [[ "$v" == "$current" ]] && clog Log -I "hugo $v already installed" && exit 0
+      [ -n "$current" ] && clog Log -W "upgrade hugo from$cS $current$cT to $cW $v"
+      fnLog "found $(echo "$urls"|wc -l) installers for ($v)($pkg)($arch)(extended)[0]"
+      fnLog "fetching $cF $url"
+      curl -sL "$url" > /tmp/hugo.deb
+      fnLog "running installer $cF $url"
+      sudo apt-get install -y /tmp/hugo.deb
+      fnLog "hugo installed"
+    jq: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      fnLog "installing jq"
+      sudo apt-get install -y jq
+      fnLog "jq installed"
+    ko: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      # check that slsa-verifier is installed
+      which slsa-verifier > /dev/null 2>&1 || clog install slsa-verifier
+      fnLog "installing ko"
+      # process the releases of the ko repo
+      vURL=https://api.github.com/repos/ko-build/ko/releases/latest
+      j="$(curl -sL $vURL)"
+      pkg=".tar.gz"
+      arch="arm" ; [[ "$(uname -m)" == "x86_64" ]] && arch="x86_64"
+      os="$(uname -s)"
+      v="$(   echo $j | jq -r '.name   | ltrimstr("v")')"
+      urls="$(echo $j | jq -r '.assets | .[] | [.name, .browser_download_url] | .[1]')"
+      url="$(echo "$urls" | grep "$v" | grep "$pkg" | grep "$arch" | grep -i "$os" | head -1)"
+      fnLog "fetching $url"
+      TMP="/tmp/ko.tar.gz"
+      SIG="/tmp/multiple.intoto.jsonl"
+      DST="/usr/local/bin/ko"
+      curl -sSfL "$url" > "$TMP"
+      curl -sSfL https://github.com/ko-build/ko/releases/download/v$v/multiple.intoto.jsonl > "$SIG"
+      fnLog "checking with slsa-verifier"
+      slsa-verifier verify-artifact --provenance-path "$SIG" --source-uri github.com/ko-build/ko --source-tag "v${v}" "$TMP"
+      fnLog "moving to /usr/local/bin/"
+      sudo tar -xzf "$TMP" --directory /usr/local/bin/ &&  sudo chmod +x "$DST"
+      fnLog "ko installed"
+    kubectl: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      sudo apt-get update
+      # apt-transport-https may be a dummy package; if so, you can skip that package
+      sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+      # If the folder `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
+      # sudo mkdir -p -m 755 /etc/apt/keyrings
+      curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg # allow unprivileged APT programs to read this keyring
+      # This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
+      echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+      sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list   # helps tools such as command-not-found to work correctly
+      sudo apt-get update
+      sudo apt-get install -y kubectl
+    minikube: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 \
+      && sudo install minikube-linux-amd64 /usr/local/bin/minikube
+    nginx: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      sudo apt-get -qq update;  sudo apt-get -yq upgrade
+      sudo apt-get install -yq nginx
+      if [ -n "$(which ufw)" ]; then
+        sudo ufw allow "Nginx Full" > /dev/null   # Allow HTTP, HTTPS
+        sudo ufw reload
+      fi
+      sudo chown -R $USER:$USER /var/www
+      # give some status & check config
+      systemctl status nginx | grep "Active"
+      sudo nginx -t
+      if [[ $? -gt 0 ]] ; then
+          clog Log -E "$cE nginx -t$cT shows config doesn't work - try again"
+      else
+          #restart nginx
+          sudo systemctl -q restart nginx
+      fi
+    node-red: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      docker run --detach -p 1880:1880 -v $HOME/.node-red:/data --name nodered --rm nodered/node-red
+    nvm: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+    op: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      clog Log -I "Installing 1password CLI for Debian"
+      curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
+      sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg && \
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" | \
+      sudo tee /etc/apt/sources.list.d/1password.list && \
+      sudo mkdir -p /etc/debsig/policies/AC2D62742012EA22/ && \
+      curl -sS https://downloads.1password.com/linux/debian/debsig/1password.pol | \
+      sudo tee /etc/debsig/policies/AC2D62742012EA22/1password.pol && \
+      sudo mkdir -p /usr/share/debsig/keyrings/AC2D62742012EA22 && \
+      curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
+      sudo gpg --dearmor --output /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg && \
+      sudo apt update && sudo apt install 1password-cli
+    protoc: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      sudo apt-get install -y protobuf-compiler
+    prometheus: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      ARCH=$(uname -m)
+      OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+      case "$ARCH" in x86_64)ARCH="amd64";;aarch64|arm64)ARCH="arm64";;*)ARCH="";;esac
+      [ -z "$ARCH" ]&&clog Log -E "unsupported architecture ($(uname -m))"&&exit 1
+      promDurl="https://api.github.com/repos/prometheus/prometheus/releases/latest"
+      nodeDurl="https://api.github.com/repos/prometheus/node_exporter/releases/latest"
+      promUrl="$(curl -s $promDurl|grep "browser_download_url.*${OS}-${ARCH}.tar.gz"|cut -d '"' -f 4)"
+      nodeUrl="$(curl -s $nodeDurl|grep "browser_download_url.*${OS}-${ARCH}.tar.gz"|cut -d '"' -f 4)"
+      promDir="$(basename $promUrl)"
+      nodeDir="$(basename $nodeUrl)"
+      #remove file extension from prometheus dir
+      promDir="${promDir%.tar.gz}"
+      nodeDir="${nodeDir%.tar.gz}"
+      promDST=/tmp/prometheus.tar.gz
+      nodeDST=/tmp/node_exporter.tar.gz
+      clog Log -I "fetch prometheus"
+      curl -L --output $promDST "$promUrl"
+      clog Log -I "fetch node_exporter"
+      curl -L --output $nodeDST "$nodeUrl"
+      cd /tmp
+      tar xvf $promDST
+      tar xvf $nodeDST
+      cd $promDir
+      sudo cp prometheus /usr/local/bin/prometheus
+      cp prometheus.yml ~/prometheus-sample.yaml
+      cd ../$nodeDir
+      sudo cp node_exporter /usr/local/bin/node_exporter
+    slsa-verifier: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      go version 2>/dev/null
+      [ $? -gt 1 ] && clog Log -E "slsa-verifier needs golang before installation" && exit 1
+      fnLog "installing slsa-verifier with go install"
+      go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest >/dev/null
+      fnLog "checking slsa-verifier version"
+      $HOME/go/bin/slsa-verifier version
+      fnLog "slsa-verifier installed"
+    snap: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      sudo apt install -y snapd
+    spin: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      curl -fsSL https://spinframework.dev/downloads/install.sh | bash
+      sudo mv spin /usr/local/bin/
+    terraform: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      #tbd mac - brew tap hashicorp/tap
+      #tbd brew install hashicorp/tap/terraform
+      sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
+      wget -O- https://apt.releases.hashicorp.com/gpg | \
+      gpg --dearmor | \
+      sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+      # verify the gpg key:
+      gpg --no-default-keyring --keyring /usr/share/keyrings/hashicorp-archive-keyring.gpg --fingerprint
+      # add the official Hashicorp repo
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+      sudo apt-get update
+      sudo apt-get install terraform
+      terraform -version && exit 0
+      exit 1
+    yarn: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      npm install --global yarn && echo "PATH=\"$PATH:$(yarn global bin)\"" >> ~/.bashrc
+    yq: |
+      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
+      arch="arm64" ; [[ "$(uname -m)" == "x86_64" ]] && arch="amd64"
+      sudo curl -Ls --output /usr/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$arch
+      sudo chmod +x /usr/bin/yq
+  # ▼▼▼ deb ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+    # ------------------------------------------------------------------------------------------------------------------
+    # ---  Mr MXF clog snippets - not in main core
+    # ------------------------------------------------------------------------------------------------------------------
+    deb: |
+      clog Init
+      clog Cat core/deb/deb0.sh > clogrc/deb0.sh
+      clog deb0
+
+  # ▼▼▼ my ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  # 
+  #   ||_    _ __    _  _
+  #  (_-<   | '  \  | || |
+  #  / _/   |_|_|_|  \_, |
+  #   ||             |__/
+  my:
+    ip: curl -s wtfismyip.com/text
+    uid: echo $UID
+    usr: echo $USER
+    home: echo ~
+    wslusr: echo "$(wslvar USERPROFILE)"
+    wslhome: echo "$(wslpath "$(wslvar USERPROFILE)")" 
+  # ▼▼▼ project ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #                               _              _
+  #   ||_    _ __   _ _   ___    (_)  ___   __  | |_
+  #  (_-<   | '_ \ | '_| / _ \   | | / -_) / _| |  _|
+  #  / _/   | .__/ |_|   \___/  _/ | \___| \__|  \__|
+  #   ||    |_|                |__/
+  # typically used for global tool version propagation, node version etc.
+  project:
+    needs:
+      golang: cat go.mod|grep '^go '|grep -oE '[0-9]\.[0-9]+\.[0-9]+'
+      hugo: hugo config --format yaml|yq -r '.module.hugoversion.min'|cut -c 2-20
+      node: echo "23.8.0"
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+#                 _
+#   _ _    __ _  (_)  _ _   __ __
+#  | ' \  / _` | | | | ' \  \ \ /
+#  |_||_| \__, | |_| |_||_| /_\_\
+#         |___/
+# --- nginx installation configuration ----------------------------------------
+# these defaults correspond to the apt package defaults
+nginx:
+  configPath: embed
+  shellsnippets: []
+  folder:
+    available: /etc/nginx/sites-available/
+    enabled: /etc/nginx/sites-enabled/
+
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+#
+#   ___ __ __  __
+#  (_-< \ V / / _|
+#  /__/  \_/  \__|
+# --- svc is a chi based website using cloglib/clogsvc ----------------------------
+svc:
+  config-path: embed
+  port: 11998
+  configFileName: server.config.yaml
+  # use the main env variable name unless overriden by the svc for web ops
+  env:
+    dbConnectionString: DB_CON_STR_CLOGSVC
+
+  db:
+    type: sqlite
+    #if no connection details specified then use env.dbConnectionString
+    defaultPageLimit: 20
+    defaultSort: CreatedAt
+  homeFolder: set-at-runtime
+  version:
+    short: "0.0.0"
+    long: 0.0.0-gitcommit
+
+  # webhook handling
+  # format: https://some-host.dns/a/hook/hookType/{source}/{project}/{semver}
+  # format: https://some-host.dns/a/hook/cicd/gitlab-deploy/$PROJECT/$(clog BC git tag ref)
+  hookprefix: "/hook"
+  hooks:
+    # params for responding to /hook/website/{id}
+    - prefix: /website/staging/{id}
+      ruleName: Test staging website
+      something: Another property
+      somevalue: 600
+      somearray: [1, 2, 3, 4]
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
