@@ -1,0 +1,24 @@
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+# This file is part of clog.
+---
+# yamllint disable rule:colons
+# ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+# Kfg minimal configuration - just paths and no app
+# override with your own configurations
+#   _  __   __         
+#  | |/ /  / _|   __ _ 
+#  | ' /  | |_   / _` |
+#  | . \  |  _| | (_| |
+#  |_|\_\ |_|    \__, |
+#                |___/ 
+kfg:
+  app-key: app
+  releases-path: releases.yaml
+  # try to load the following files (in order) to overlay configs
+  # NOTE - koanf gets unhappy if relative paths start with "./"
+  try-paths:
+    - /var/kfg/konfig.yaml
+    - $HOME/.config/konfig.yaml
+    - $HOME/.konfig.yaml
+    - .konfig.yaml

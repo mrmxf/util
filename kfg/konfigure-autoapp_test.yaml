@@ -1,0 +1,85 @@
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+# This file is part of clog.
+# Test configuration file for comprehensive YAML feature testing
+# This file demonstrates various YAML syntax features including:
+# - nested structures, arrays, maps, maps of arrays, and complex nesting
+
+test-app:
+  # Basic types
+  name: "TestApplication"
+  version: 2
+  enabled: true
+  rating: 4.5
+
+  # Nested struct
+  database:
+    host: "localhost"
+    port: 5432
+    name: "testdb"
+    ssl: true
+    pool-size: 10
+
+  # Array of strings
+  tags:
+    - "development"
+    - "testing"
+    - "golang"
+
+  # Array of structs
+  servers:
+    - name: "web-01"
+      url: "https://web-01.example.com"
+      regions:
+        - "us-east-1"
+        - "us-west-2"
+      capacity: 100
+    - name: "api-01"
+      url: "https://api-01.example.com"
+      regions:
+        - "eu-west-1"
+      capacity: 200
+
+  # Map of strings
+  environment:
+    NODE_ENV: "development"
+    LOG_LEVEL: "debug"
+    DEBUG: "true"
+
+  # Map of arrays
+  feature-flags:
+    auth-methods:
+      - "oauth"
+      - "saml"
+      - "ldap"
+    cache-backends:
+      - "redis"
+      - "memcached"
+
+  # Nested maps (map of structs)
+  metrics:
+    cpu:
+      enabled: true
+      interval: "30s"
+      threshold: 80
+    memory:
+      enabled: true
+      interval: "60s"
+      threshold: 90
+
+  # Array of maps
+  endpoints:
+    - path: "/api/v1/health"
+      method: "GET"
+      timeout: 5
+    - path: "/api/v1/users"
+      method: "POST"
+      timeout: 30
+
+# Configuration for kfg automerge testing
+kfg:
+  releases-path: "test-releases.yaml"
+  try-paths:
+    - "test-merge-1.yaml"
+    - "test-merge-2.yaml"
+    - "nonexistent-file.yaml"  # This should be silently ignored
