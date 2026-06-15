@@ -1,0 +1,68 @@
+hugo:
+  description: "Hugo static site generator (extended build)"
+  check:
+    name: "hugo is installed"
+    try:
+      - "hugo version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  hugo is installed"'
+    else: 'clog Log -W "  hugo not found — install with: clog install hugo"'
+  version:
+    strategy: hugo-module
+    file: "config/_default/module.yaml"
+    fallback:
+      strategy: github-latest
+      repo: gohugoio/hugo
+      tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: hugo
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: hugo
+    linux-deb/arm64:
+      arch: arm64
+      download:
+        strategy: github-release-asset
+        repo: gohugoio/hugo
+        filter:
+          - "_extended_"
+          - "_linux-arm64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-deb/amd64:
+      arch: amd64
+      download:
+        strategy: github-release-asset
+        repo: gohugoio/hugo
+        filter:
+          - "_extended_"
+          - "_linux-amd64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-rpm/arm64:
+      arch: arm64
+      download:
+        strategy: github-release-asset
+        repo: gohugoio/hugo
+        filter:
+          - "_extended_"
+          - "_linux-arm64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true
+    linux-rpm/amd64:
+      arch: amd64
+      download:
+        strategy: github-release-asset
+        repo: gohugoio/hugo
+        filter:
+          - "_extended_"
+          - "_linux-amd64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true

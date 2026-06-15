@@ -1,0 +1,55 @@
+aws:
+  description: "AWS CLI v2"
+  check:
+    name: "aws CLI is installed"
+    try:
+      - "aws --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  aws CLI is installed"'
+    else: 'clog Log -W "  aws not found — install with: clog install aws"'
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: run-script
+        script: |
+          curl -sL "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o /tmp/AWSCLIV2.pkg
+          sudo installer -pkg /tmp/AWSCLIV2.pkg -target /
+        sudo: true
+    darwin/amd64:
+      install:
+        strategy: run-script
+        script: |
+          curl -sL "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o /tmp/AWSCLIV2.pkg
+          sudo installer -pkg /tmp/AWSCLIV2.pkg -target /
+        sudo: true
+    linux-deb/arm64:
+      install:
+        strategy: run-script
+        script: |
+          curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip
+          cd /tmp && unzip -q awscliv2.zip
+          sudo ./aws/install --update
+        sudo: true
+    linux-deb/amd64:
+      install:
+        strategy: run-script
+        script: |
+          curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          cd /tmp && unzip -q awscliv2.zip
+          sudo ./aws/install --update
+        sudo: true
+    linux-rpm/arm64:
+      install:
+        strategy: run-script
+        script: |
+          curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip
+          cd /tmp && unzip -q awscliv2.zip
+          sudo ./aws/install --update
+        sudo: true
+    linux-rpm/amd64:
+      install:
+        strategy: run-script
+        script: |
+          curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          cd /tmp && unzip -q awscliv2.zip
+          sudo ./aws/install --update
+        sudo: true

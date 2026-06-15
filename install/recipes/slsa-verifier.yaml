@@ -1,0 +1,33 @@
+slsa-verifier:
+  description: "SLSA provenance verifier (all platforms via go install)"
+  check:
+    name: "slsa-verifier is installed"
+    try:
+      - "slsa-verifier version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  slsa-verifier is installed"'
+    else: 'clog Log -W "  slsa-verifier not found — install with: clog install slsa-verifier"'
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: go-install
+        import: "github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest"
+    darwin/amd64:
+      install:
+        strategy: go-install
+        import: "github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest"
+    linux-deb/arm64:
+      install:
+        strategy: go-install
+        import: "github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest"
+    linux-deb/amd64:
+      install:
+        strategy: go-install
+        import: "github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest"
+    linux-rpm/arm64:
+      install:
+        strategy: go-install
+        import: "github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest"
+    linux-rpm/amd64:
+      install:
+        strategy: go-install
+        import: "github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest"

@@ -1,0 +1,57 @@
+kubectl:
+  description: "Kubernetes command-line tool"
+  check:
+    name: "kubectl is installed"
+    try:
+      - "kubectl version --client >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  kubectl is installed"'
+    else: 'clog Log -W "  kubectl not found — install with: clog install kubectl"'
+  version:
+    strategy: github-latest
+    repo: kubernetes/kubernetes
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: kubectl
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: kubectl
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://dl.k8s.io/release/v{version}/bin/linux/arm64/kubectl"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/kubectl
+        chmod: "0755"
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://dl.k8s.io/release/v{version}/bin/linux/amd64/kubectl"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/kubectl
+        chmod: "0755"
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://dl.k8s.io/release/v{version}/bin/linux/arm64/kubectl"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/kubectl
+        chmod: "0755"
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://dl.k8s.io/release/v{version}/bin/linux/amd64/kubectl"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/kubectl
+        chmod: "0755"
+        sudo: true

@@ -1,0 +1,57 @@
+yq:
+  description: "yq — YAML processor (mikefarah/yq)"
+  check:
+    name: "yq is installed"
+    try:
+      - "yq --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  yq is installed"'
+    else: 'clog Log -W "  yq not found — install with: clog install yq"'
+  version:
+    strategy: github-latest
+    repo: mikefarah/yq
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: yq
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: yq
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_arm64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/yq
+        chmod: "0755"
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_amd64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/yq
+        chmod: "0755"
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_arm64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/yq
+        chmod: "0755"
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_amd64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/yq
+        chmod: "0755"
+        sudo: true

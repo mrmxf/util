@@ -1,0 +1,37 @@
+jq:
+  description: "jq — lightweight JSON processor"
+  check:
+    name: "jq is installed"
+    try:
+      - "jq --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  jq is installed"'
+    else: 'clog Log -W "  jq not found — install with: clog install jq"'
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: jq
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: jq
+    linux-deb/arm64:
+      install:
+        strategy: apt-install
+        package: jq
+        sudo: true
+    linux-deb/amd64:
+      install:
+        strategy: apt-install
+        package: jq
+        sudo: true
+    linux-rpm/arm64:
+      install:
+        strategy: dnf-install
+        package: jq
+        sudo: true
+    linux-rpm/amd64:
+      install:
+        strategy: dnf-install
+        package: jq
+        sudo: true

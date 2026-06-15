@@ -1,0 +1,57 @@
+gh:
+  description: "GitHub CLI"
+  check:
+    name: "gh (GitHub CLI) is installed"
+    try:
+      - "gh version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  gh (GitHub CLI) is installed"'
+    else: 'clog Log -W "  gh not found — install with: clog install gh"'
+  version:
+    strategy: github-latest
+    repo: cli/cli
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: gh
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: gh
+    linux-deb/arm64:
+      download:
+        strategy: github-release-asset
+        repo: cli/cli
+        filter:
+          - "_linux_arm64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: github-release-asset
+        repo: cli/cli
+        filter:
+          - "_linux_amd64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: github-release-asset
+        repo: cli/cli
+        filter:
+          - "_linux_arm64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: github-release-asset
+        repo: cli/cli
+        filter:
+          - "_linux_amd64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true

@@ -1,0 +1,57 @@
+golangci-lint:
+  description: "golangci-lint — Go linter aggregator"
+  check:
+    name: "golangci-lint is installed"
+    try:
+      - "golangci-lint --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  golangci-lint is installed"'
+    else: 'clog Log -W "  golangci-lint not found — install with: clog install golangci-lint"'
+  version:
+    strategy: github-latest
+    repo: golangci/golangci-lint
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: golangci-lint
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: golangci-lint
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-linux-arm64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "golangci-lint-{version}-linux-arm64/golangci-lint"
+        dest: /usr/local/bin
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-linux-amd64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "golangci-lint-{version}-linux-amd64/golangci-lint"
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-linux-arm64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "golangci-lint-{version}-linux-arm64/golangci-lint"
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-linux-amd64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "golangci-lint-{version}-linux-amd64/golangci-lint"
+        dest: /usr/local/bin
+        sudo: true

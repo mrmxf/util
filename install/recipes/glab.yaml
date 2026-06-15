@@ -1,0 +1,57 @@
+glab:
+  description: "GitLab CLI"
+  check:
+    name: "glab (GitLab CLI) is installed"
+    try:
+      - "glab version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  glab (GitLab CLI) is installed"'
+    else: 'clog Log -W "  glab not found — install with: clog install glab"'
+  version:
+    strategy: github-latest
+    repo: gitlab-org/cli
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: glab
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: glab
+    linux-deb/arm64:
+      download:
+        strategy: github-release-asset
+        repo: gitlab-org/cli
+        filter:
+          - "_linux_arm64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: github-release-asset
+        repo: gitlab-org/cli
+        filter:
+          - "_linux_amd64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: github-release-asset
+        repo: gitlab-org/cli
+        filter:
+          - "_linux_arm64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: github-release-asset
+        repo: gitlab-org/cli
+        filter:
+          - "_linux_amd64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true

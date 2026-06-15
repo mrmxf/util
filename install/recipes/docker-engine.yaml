@@ -1,0 +1,65 @@
+docker-engine:
+  description: "Docker container engine (Linux only; use Docker Desktop for macOS)"
+  check:
+    name: "docker is installed"
+    try:
+      - "docker --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  docker is installed"'
+    else: 'clog Log -W "  docker not found — install with: clog install docker-engine"'
+  platforms:
+    darwin/arm64:
+      unsupported: true
+    darwin/amd64:
+      unsupported: true
+    linux-deb/arm64:
+      install:
+        strategy: run-script
+        script: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ca-certificates curl
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          arch=$(dpkg --print-architecture)
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [arch=${arch} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${codename} stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          sudo usermod -aG docker "$USER"
+        sudo: true
+    linux-deb/amd64:
+      install:
+        strategy: run-script
+        script: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ca-certificates curl
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          arch=$(dpkg --print-architecture)
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [arch=${arch} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${codename} stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          sudo usermod -aG docker "$USER"
+        sudo: true
+    linux-rpm/arm64:
+      install:
+        strategy: run-script
+        script: |
+          sudo dnf -y install dnf-plugins-core
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+          sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          sudo systemctl enable --now docker
+          sudo usermod -aG docker "$USER"
+        sudo: true
+    linux-rpm/amd64:
+      install:
+        strategy: run-script
+        script: |
+          sudo dnf -y install dnf-plugins-core
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+          sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          sudo systemctl enable --now docker
+          sudo usermod -aG docker "$USER"
+        sudo: true

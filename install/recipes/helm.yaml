@@ -1,0 +1,57 @@
+helm:
+  description: "Helm — Kubernetes package manager"
+  check:
+    name: "helm is installed"
+    try:
+      - "helm version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  helm is installed"'
+    else: 'clog Log -W "  helm not found — install with: clog install helm"'
+  version:
+    strategy: github-latest
+    repo: helm/helm
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: helm
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: helm
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://get.helm.sh/helm-v{version}-linux-arm64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: linux-arm64/helm
+        dest: /usr/local/bin
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://get.helm.sh/helm-v{version}-linux-amd64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: linux-amd64/helm
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://get.helm.sh/helm-v{version}-linux-arm64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: linux-arm64/helm
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://get.helm.sh/helm-v{version}-linux-amd64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: linux-amd64/helm
+        dest: /usr/local/bin
+        sudo: true

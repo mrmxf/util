@@ -1,0 +1,29 @@
+tools:
+  aws:
+    recipepath: "recipes/aws.yaml"
+  docker-engine:
+    recipepath: "recipes/docker-engine.yaml"
+  gh:
+    recipepath: "recipes/gh.yaml"
+  git:
+    recipepath: "recipes/git.yaml"
+  glab:
+    recipepath: "recipes/glab.yaml"
+  golang:
+    recipepath: "recipes/golang.yaml"
+  golangci-lint:
+    recipepath: "recipes/golangci-lint.yaml"
+  helm:
+    recipepath: "recipes/helm.yaml"
+  hugo:
+    recipepath: "recipes/hugo.yaml"
+  jq:
+    recipepath: "recipes/jq.yaml"
+  ko:
+    recipepath: "recipes/ko.yaml"
+  kubectl:
+    recipepath: "recipes/kubectl.yaml"
+  slsa-verifier:
+    recipepath: "recipes/slsa-verifier.yaml"
+  yq:
+    recipepath: "recipes/yq.yaml"

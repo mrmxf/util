@@ -1,0 +1,91 @@
+golang:
+  description: "Go programming language toolchain"
+  check:
+    name: "golang is installed"
+    try:
+      - "go version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  golang is installed"'
+    else: 'clog Log -W "  golang not found — install with: clog install golang"'
+  version:
+    strategy: go-mod
+    fallback:
+      strategy: github-tags
+      repo: golang/go
+      tag-filter: "^go[0-9]"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: go
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: go
+    linux-deb/arm64:
+      os: linux
+      arch: arm64
+      download:
+        strategy: url-template
+        url: "https://go.dev/dl/{version}.linux-arm64.tar.gz"
+      install:
+        strategy: extract-tar
+        dest: /usr/local
+        sudo: true
+      post-install:
+        - strategy: path-append
+          line: 'export PATH=$PATH:/usr/local/go/bin'
+          profile: ~/.bashrc
+        - strategy: path-append
+          line: 'export PATH=$PATH:$(go env GOPATH)/bin'
+          profile: ~/.bashrc
+    linux-deb/amd64:
+      os: linux
+      arch: amd64
+      download:
+        strategy: url-template
+        url: "https://go.dev/dl/{version}.linux-amd64.tar.gz"
+      install:
+        strategy: extract-tar
+        dest: /usr/local
+        sudo: true
+      post-install:
+        - strategy: path-append
+          line: 'export PATH=$PATH:/usr/local/go/bin'
+          profile: ~/.bashrc
+        - strategy: path-append
+          line: 'export PATH=$PATH:$(go env GOPATH)/bin'
+          profile: ~/.bashrc
+    linux-rpm/arm64:
+      os: linux
+      arch: arm64
+      download:
+        strategy: url-template
+        url: "https://go.dev/dl/{version}.linux-arm64.tar.gz"
+      install:
+        strategy: extract-tar
+        dest: /usr/local
+        sudo: true
+      post-install:
+        - strategy: path-append
+          line: 'export PATH=$PATH:/usr/local/go/bin'
+          profile: ~/.bashrc
+        - strategy: path-append
+          line: 'export PATH=$PATH:$(go env GOPATH)/bin'
+          profile: ~/.bashrc
+    linux-rpm/amd64:
+      os: linux
+      arch: amd64
+      download:
+        strategy: url-template
+        url: "https://go.dev/dl/{version}.linux-amd64.tar.gz"
+      install:
+        strategy: extract-tar
+        dest: /usr/local
+        sudo: true
+      post-install:
+        - strategy: path-append
+          line: 'export PATH=$PATH:/usr/local/go/bin'
+          profile: ~/.bashrc
+        - strategy: path-append
+          line: 'export PATH=$PATH:$(go env GOPATH)/bin'
+          profile: ~/.bashrc

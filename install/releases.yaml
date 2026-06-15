@@ -1,0 +1,5 @@
+- version: "v0.1.0"
+  date: 2026-06-08
+  flow: main
+  build: dev
+  note: "initial declarative installer — brew/apt/dnf/go-install/run-script/extract-tar/copy-binary strategies"
