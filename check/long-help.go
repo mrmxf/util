@@ -3,44 +3,60 @@
 // This file is part of clog.
 
 //
-// package check creates a try-catch-finally block of scripts
+// package check creates a try/then/else/finally block of scripts
 
 package check
 
 const longHelp = `
-usage: clog Check thingy
+usage: clog Check <section>
 
-this will search for a "check.thingy" key in your clog.yaml config file.
+Runs every block in the "check.<section>" key of your clog.yaml.
 
-A check block has the format given below. The name field is optional. The script
-in the try section is executed. If the exit code is non-zero then the catch script
-is executed, otherwise the ok script is executed.
+Each block ANDs together its env: and try: conditions. The value beside a
+condition is the state it must satisfy:
 
-The clog command will ONLY return an error if one or more of the catch blocks
-exits with a non-zero exit code, otherwise the command will be a success.
+  truthy        env var set & non-empty        / try cmd exits 0
+  falsy         env var unset or empty         / try cmd exits non-zero
+  "literal"     exact match (env value or trimmed stdout)
+  "~regexp"     Go regexp match
+  ">N" / "<N"   numeric comparison
 
-For consistent checks:
- - use clog Log -E "message"   when a catch block returns error
- - use clog Log -W "message"   when a catch block returns success
- - the output of the try command is available in ok/catch as $STDOUTERR
- - the exit status of the try command is available in ok/catch as $EXITCODE
+env: conditions are pure Go (no shell) and are evaluated first; if any fail the
+try: conditions are skipped. then: runs when ALL conditions are truthy; else:
+runs when ANY is falsy. ok:/catch: are accepted aliases of then:/else:.
+finally: always runs.
+
+clog Check returns an error only when an else:/catch: script exits non-zero.
+
+These $CHECK_* vars are available to then:/else:/finally::
+  $CHECK_NAME $CHECK_ID $CHECK_COUNT $CHECK_SECTION        (identity)
+  $CHECK_CONDITION_COUNT $CHECK_TRUTHY_CONDITIONS          (accounting)
+  $CHECK_FALSY_CONDITIONS $CHECK_CONDITION_VALUE
+  $CHECK_ISTRUTHY $CHECK_ISFALSY    (empty = active; opposite states)
+Legacy $STDOUTERR / $EXITCODE (last try condition) are still set.
+
+Flags:
+  --dry-run                 validate YAML structure; run nothing
+  --dump <section>.<id>     print a block (1-based id); run nothing
+  --dump ... --conditions 3,4   explain only those 1-based conditions
 
 Sample clog.yaml
 ================
 
 check:
-  thingy:
-    before: eval "$(clog Crayon)"
+  tools:
     blocks:
-      - try:     clog git tree clean
-        ok:      clog Log -I "Ok working tree clean"
-        catch:   clog Log -W "   working tree NOT clean"
-				finally: echo "git tree cleanliness complete"
       - name: golang
-        try: |
-          vv="$(go version|cat go.mod|grep '^go '|grep -oE '[0-9]\.[0-9]+\.[0-9]+')" 
-          [[ "$vv" == "$(clog project needs golang)" ]]
-        catch: |
-          clog Log -E "wrong go version. Need $(clog project needs golang)"
-          exit 1 # ensure clog Check returns an error that can be caught
+        env:
+          - CI: falsy
+        try:
+          - "go version >/dev/null 2>&1": truthy
+        then:    clog Log -I "Ok golang installed"
+        else:    clog Log -W "   golang missing"
+        finally: clog Log -I "$CHECK_NAME ($CHECK_ID/$CHECK_COUNT)"
+
+Legacy form (still supported): a scalar try: with ok:/catch: strings.
+      - try:   clog git tree clean
+        ok:    clog Log -I "Ok working tree clean"
+        catch: clog Log -W "   working tree NOT clean"
 `

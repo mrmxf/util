@@ -3,56 +3,146 @@
 // This file is part of clog.
 
 //
-// package check creates a try-catch-finally block of scripts
+// package check creates a try/then/else/finally block of scripts
 
 package check
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"runtime"
 
 	"github.com/mrmxf/util/kfg"
-	"github.com/mrmxf/util/scripts"
-	"github.com/mrmxf/util/shell"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var KfgKey = "check"
 
-// define the try-catch-finally block keys:
-type CheckBlock struct {
-	Try              string `json:"try"`
-	TryStdOutErr     string
-	TryExitCode      int
-	Ok               string `json:"ok"`
-	Catch            string `json:"catch"`
-	CatchStdOutErr   string
-	Finally          string `json:"finally"`
-	FinallyStdOutErr string
-	FinallyExitCode  int
+// ValidBlockFields lists every YAML key that is valid inside a check block.
+var ValidBlockFields = map[string]bool{
+	"name":    true,
+	"before":  true,
+	"env":     true,
+	"try":     true,
+	"then":    true,
+	"ok":      true,
+	"else":    true,
+	"catch":   true,
+	"finally": true,
 }
 
-// validRequiredKeys is a reference map to check if the keys in the config
-// are weird or valid. None of the keys are currently required
-var validRequiredKeys = map[string]bool{
-	"Try":     false,
-	"Pass":    false,
-	"Catch":   false,
-	"Finally": false,
+// ParseError describes a single structural error found during --dry-run
+// validation of a check block. All fields are populated so callers can
+// pinpoint section / block-index / block-name / field without further lookup.
+type ParseError struct {
+	Section string // check group key (e.g. "tools")
+	Block   int    // 1-based block index within the group
+	ID      string // block name if set, otherwise "block #N"
+	Field   string // YAML field that triggered the error, or "" for structural errors
+	Reason  string // human-readable explanation
 }
 
-// a Check Group is a collection of Check Blocks, potentially with a log level
-type CheckGroup struct {
-	Name     string
-	LogLevel slog.Level
-	LogFile  *os.File
-	Before   string `json:"before"`
-	Blocks   []CheckBlock
+func (e ParseError) Error() string {
+	if e.Field == "" {
+		return fmt.Sprintf("check.%s %s: %s", e.Section, e.ID, e.Reason)
+	}
+	return fmt.Sprintf("check.%s %s .%s: %s", e.Section, e.ID, e.Field, e.Reason)
 }
+
+// DryRun validates the raw blocks array for a check group without executing
+// any scripts. It accumulates all parse errors rather than stopping at the
+// first one, so a single pass surfaces every structural problem in the config.
+//
+// Returns nil when the blocks are structurally valid.
+func DryRun(section string, rawBlocksArray any) []ParseError {
+	if rawBlocksArray == nil {
+		return []ParseError{{Section: section, Block: 0, ID: "blocks", Field: "", Reason: "nil blocks array in config"}}
+	}
+
+	blocks, ok := rawBlocksArray.([]any)
+	if !ok {
+		return []ParseError{{Section: section, Block: 0, ID: "blocks", Field: "", Reason: fmt.Sprintf("expected array, got %T", rawBlocksArray)}}
+	}
+
+	var errs []ParseError
+	for i, raw := range blocks {
+		blockNum := i + 1
+		blk, isMap := raw.(map[string]interface{})
+		if !isMap {
+			errs = append(errs, ParseError{
+				Section: section, Block: blockNum, ID: fmt.Sprintf("block #%d", blockNum),
+				Field: "", Reason: fmt.Sprintf("must be a YAML map, got %T", raw),
+			})
+			continue
+		}
+
+		// resolve a human-readable ID for this block
+		id := fmt.Sprintf("block #%d", blockNum)
+		if nameVal, has := blk["name"]; has {
+			if s, isStr := nameVal.(string); isStr && s != "" {
+				id = fmt.Sprintf("%q (#%d)", s, blockNum)
+			}
+		}
+
+		// flag unrecognised keys
+		for k := range blk {
+			if !ValidBlockFields[k] {
+				errs = append(errs, ParseError{Section: section, Block: blockNum, ID: id, Field: k, Reason: "unrecognised field"})
+			}
+		}
+
+		// scalar string fields must be strings.
+		for _, f := range []string{"name", "then", "ok", "else", "catch", "finally", "before"} {
+			val, exists := blk[f]
+			if !exists || val == nil {
+				continue
+			}
+			if _, isStr := val.(string); !isStr {
+				errs = append(errs, ParseError{
+					Section: section, Block: blockNum, ID: id,
+					Field: f, Reason: fmt.Sprintf("expected string, got %T", val),
+				})
+			}
+		}
+
+		// env / try must be a string (legacy) or a list.
+		for _, f := range []string{"env", "try"} {
+			val, exists := blk[f]
+			if !exists || val == nil {
+				continue
+			}
+			switch val.(type) {
+			case string, []any, []string:
+				// acceptable forms
+			default:
+				errs = append(errs, ParseError{
+					Section: section, Block: blockNum, ID: id,
+					Field: f, Reason: fmt.Sprintf("expected string or list, got %T", val),
+				})
+			}
+		}
+
+		// round-trip through YAML to catch type / schema incompatibilities,
+		// including the env/try union and the then/ok + else/catch alias clashes.
+		yamlBody, err := yaml.Marshal(blk)
+		if err != nil {
+			errs = append(errs, ParseError{Section: section, Block: blockNum, ID: id, Field: "", Reason: "yaml.Marshal: " + err.Error()})
+			continue
+		}
+		var b Block
+		if err := yaml.Unmarshal(yamlBody, &b); err != nil {
+			errs = append(errs, ParseError{Section: section, Block: blockNum, ID: id, Field: "", Reason: err.Error()})
+		}
+	}
+	return errs
+}
+
+var (
+	dryRunFlag     bool
+	dumpFlag       string
+	conditionsFlag string
+)
 
 var Command = &cobra.Command{
 	Use:           "Check",
@@ -62,11 +152,16 @@ var Command = &cobra.Command{
 	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
+		// --dump carries its own "section.id" target, so it works with or
+		// without a positional section argument and short-circuits everything.
+		if dumpFlag != "" {
+			return runDump("")
+		}
+
 		// check a group was specified
 		if len(args) == 0 {
-			msg := "cannot run Check, no group specified"
-			slog.Error(msg, "len(args)", 0)
-			cmd.Help()
+			slog.Error("cannot run Check, no group specified", "len(args)", 0)
+			return cmd.Help()
 		}
 
 		if kfg.Raw.Get(KfgKey) == nil {
@@ -81,167 +176,54 @@ var Command = &cobra.Command{
 			return fmt.Errorf("cannot find check group(%s) in clog.yaml", groupKey)
 		}
 
-		// parse the check key into a CheckGroup struct
-		group := CheckGroup{
-			Name:     args[0],
-			LogLevel: slog.LevelInfo,
-			LogFile:  nil,
-			Blocks:   []CheckBlock{},
-		}
 		blocksKey := groupKey + ".blocks"
-		err := parseBlocks(cmd, KfgKey, &group, kfg.Raw.Get(blocksKey))
+
+		// --dry-run: validate YAML structure without executing any scripts.
+		if dryRunFlag {
+			parseErrs := DryRun(args[0], kfg.Raw.Get(blocksKey))
+			if len(parseErrs) == 0 {
+				slog.Info("Check --dry-run success - no errors", "section", args[0])
+				return nil
+			}
+			for _, e := range parseErrs {
+				slog.Error(e.Error())
+			}
+			return fmt.Errorf("Check --dry-run: %d parse error(s) in section %q", len(parseErrs), args[0])
+		}
+
+		section, err := ParseSection(args[0], kfg.Raw.Get(groupKey))
 		if err != nil {
-			slog.Error("cannot parse check blocks", "key", blocksKey)
-			return fmt.Errorf("cannot parse check blocks(%s)", blocksKey)
+			slog.Error("cannot parse check section", "key", groupKey, "err", err)
+			return fmt.Errorf("cannot parse check section(%s): %w", groupKey, err)
 		}
-		// set the group level keys
-		group.Name = kfg.Raw.String(groupKey + ".name")
-		if len(group.Name) == 0 {
-			group.Name = groupKey
-		}
-		err = runBlocks(cmd, groupKey, group)
-		if err != nil {
-			return fmt.Errorf("check failed")
-		}
-		return nil
+		return RunSection(section)
 	},
 }
 
-// splice the before commands in front of the try commands
-func splice(before string, stepStr string) string {
-	cmdStr := ""
-	if len(before) > 0 {
-		cmdStr = before + "\n"
+// ParseSection converts the raw kfg value for a check.<section> key into a
+// typed Section, applying the env/try normalisation and then/else aliasing.
+func ParseSection(name string, raw any) (Section, error) {
+	if raw == nil {
+		return Section{}, fmt.Errorf("nil section")
 	}
-	return cmdStr + stepStr
-}
-
-// exec a command with custom environment
-func capture(before string, stepStr string, i int, stepName string, env map[string]string) (string, int, error) {
-	cmdStr := splice(before, stepStr)
-	outErr, exitCode, err := shell.CaptureShellSnippet(cmdStr, env)
+	yamlBody, err := yaml.Marshal(raw)
 	if err != nil {
-		slog.Debug(fmt.Sprintf("            - %d (%s) failed", i, stepName), "err", err)
+		return Section{}, fmt.Errorf("yaml.Marshal: %w", err)
 	}
-	return outErr, exitCode, err
+	var s Section
+	if err := yaml.Unmarshal(yamlBody, &s); err != nil {
+		return Section{}, err
+	}
+	if s.Name == "" {
+		s.Name = name
+	}
+	return s, nil
 }
 
-// stream a command with custom environment
-func stream(before string, stepStr string, i int, stepName string, env map[string]string) (int, error) {
-	cmdStr := splice(before, stepStr)
-	exitStatus, err := scripts.AwaitShellSnippet(cmdStr, env, []string{})
-	return exitStatus, err
-}
-
-// run all the blocks in the group
-func runBlocks(cmd *cobra.Command, key string, group CheckGroup) error {
-	fail := 0
-	var env map[string]string
-	var err error
-	for i, b := range group.Blocks {
-		//step 1: try
-		if len(b.Try) > 0 {
-			b.TryStdOutErr, b.TryExitCode, err = capture(group.Before, b.Try, i, "try", nil)
-
-			//preserve the output of try for the next steps
-			env = map[string]string{
-				"STDOUTERR": b.TryStdOutErr,
-				"EXITCODE":  fmt.Sprintf("%d", b.TryExitCode),
-			}
-			if err != nil {
-				env["ERR"] = err.Error()
-			}
-
-			//step 2. ok or catch
-			if b.TryExitCode == 0 {
-				if len(b.Ok) > 0 {
-					//step 2. ok command exists
-					stream(group.Before, b.Ok, i, "ok", env)
-				}
-			} else {
-				if len(b.Catch) > 0 {
-					//step 2. catch exists
-					exit, _ := stream(group.Before, b.Catch, i, "catch", env)
-					// fail is only incremented if a catch returns an error
-					if exit > 0 {
-						fail++
-					}
-				}
-			}
-		}
-		//step 3. finally
-		if len(b.Finally) > 0 {
-			//step 3. finally exists
-			stream(group.Before, b.Finally, i, "catch", env)
-		}
-	}
-	if fail == 0 {
-		slog.Info(fmt.Sprintf("Check %s passed (%d blocks)", group.Name, len(group.Blocks)))
-		return nil
-	}
-	msg := fmt.Errorf("check %s failed (%d/%d blocks errored)", group.Name, fail, len(group.Blocks))
-	slog.Error(msg.Error())
-	return msg
-}
-
-func validateRawBlockKeys(key string, iBlk int, block map[string]interface{}) (*CheckBlock, bool) {
-	errCount := 0
-	newBlock := CheckBlock{}
-	// check all the keys from clog.yaml against reference keys
-	for k := range block {
-		if _, isValid := validRequiredKeys[k]; isValid {
-			errCount++
-			slog.Warn((fmt.Sprintf("%s block #%d has foreign key (%s)", key, iBlk, k)))
-		}
-	}
-	// use json library to populated the struct via a json string
-	jsonBody, err := json.Marshal(block)
-	if err != nil {
-		errCount++
-		slog.Warn((fmt.Sprintf("%s block #%d cannot be parsed", key, iBlk)))
-	}
-	if err := json.Unmarshal(jsonBody, &newBlock); err != nil {
-		errCount++
-		slog.Warn("%s block #%d cannot be unmarshaled", key, iBlk)
-		slog.Warn("      yaml vs.bash quotes? e.g. - try: \"[ -n \\\"$VAR\\\" ]\"")
-	}
-	if errCount == 0 {
-		return &newBlock, true
-	}
-	return nil, false
-}
-
-// load the blocks into the CheckBlock struct
-// typical block structure is:
-//   - name: check origin hash
-//     before: clog Log -I "? HEAD hash == origin hash"
-//     try: [[ "$(clog tag hash head)" == "$(clog tag hash origin)" ]]
-//     catch: clog Log -W "  HEAD hash != origin hash"
-//     finally
-func parseBlocks(parentCmd *cobra.Command, key string, group *CheckGroup, rawBlocksArray any) error {
-	slog.Debug((fmt.Sprintf("%s raw blocks of type %T", key, rawBlocksArray)))
-	allBlocks := []CheckBlock{}
-	// validate homogeneity of rawBlocksArray map[string]any
-	ok := true
-	for i, block := range rawBlocksArray.([]any) {
-		switch block.(type) {
-		case map[string]interface{}:
-			b, parseOk := validateRawBlockKeys(key, i, block.(map[string]interface{}))
-			ok = ok && parseOk
-			if parseOk {
-				allBlocks = append(allBlocks, *b)
-			}
-		default:
-			slog.Error((fmt.Sprintf("%s block #%d must be array of keys, not (%T)", key, i, block)))
-			ok = false
-		}
-	}
-	if !ok {
-		return errors.New("invalid syntax in config " + key)
-	}
-	group.Blocks = allBlocks
-	slog.Debug(fmt.Sprintf("%s - %d checks blocks found", key, len(allBlocks)))
-	return nil
+func init() {
+	Command.Flags().BoolVar(&dryRunFlag, "dry-run", false, "validate YAML structure without executing scripts; reports all parse errors")
+	Command.Flags().StringVar(&dumpFlag, "dump", "", "inspect a block: --dump section.id (1-based); no scripts run")
+	Command.Flags().StringVar(&conditionsFlag, "conditions", "", "with --dump: comma-separated 1-based condition indices to explain")
 }
 
 func init() {
