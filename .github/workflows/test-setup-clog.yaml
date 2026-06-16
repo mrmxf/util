@@ -1,0 +1,52 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  test-setup-clog — smoke test the pinned, checksum-verified clog bootstrap.
+#  Replaces the legacy test-get-clog.yaml, which only proved a secret evaluated.
+#  This proves the new setup-clog action installs a verified, runnable clog.
+
+name: test-setup-clog
+run-name: test-setup-clog 🥷${{ github.actor }}
+
+on:
+  workflow_call:
+    inputs:
+      clog-ref:
+        description: "clog release tag to install (default: repo .clog-version)"
+        required: false
+        type: string
+        default: ""
+      clog-repo:
+        description: GitHub owner/repo holding the clog release
+        required: false
+        type: string
+        default: mrmxf/clog-sample
+    secrets:
+      clog_download_token:
+        description: token for a private release repo (optional)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  test-setup-clog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: setup-clog
+        id: setup
+        uses: mrmxf/util/.github/actions/setup-clog@workflows-v1
+        with:
+          clog-ref: ${{ inputs.clog-ref }}
+          clog-repo: ${{ inputs.clog-repo }}
+          token: ${{ secrets.clog_download_token }}
+      - name: verify clog runs
+        shell: bash
+        run: |
+          clog --version
+          echo "installed: ${{ steps.setup.outputs.version }}"
+          echo "### clog bootstrap ✅ \`${{ steps.setup.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"

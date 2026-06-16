@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mrmxf.com/schemas/bc-stash.schema.json",
+  "title": "BC Stash",
+  "description": "Build Control stash file: a flow -> phase -> ordered steps tree recorded during a build/check/deploy run.",
+  "$comment": "Flow, phase and step names are case-insensitive identifiers (must start with a letter). Case is deliberately NOT constrained: the uppercase summary flow 'FLOW' coexists with lowercase flows like 'build' and 'check', and SlackStash must accept any real stash.",
+  "type": "object",
+  "properties": {
+    "flow": {
+      "type": "object",
+      "description": "Map of flow name -> phases. A flow groups related work (e.g. the 'FLOW' summary, 'build', 'check').",
+      "patternProperties": {
+        "^[a-zA-Z][a-zA-Z0-9_-]*$": {
+          "type": "object",
+          "description": "A flow: map of phase name -> steps. Phase names are identifiers (e.g. compile, tagging, upload).",
+          "patternProperties": {
+            "^[a-zA-Z][a-zA-Z0-9_-]*$": {
+              "type": "array",
+              "description": "A phase: the ordered steps recorded in this phase (e.g. start, init, end).",
+              "items": {
+                "type": "object",
+                "description": "One recorded step: what happened, at what level, when.",
+                "properties": {
+                  "step": {
+                    "type": "string",
+                    "description": "Step identifier (e.g., init, compile, test, end)",
+                    "minLength": 1
+                  },
+                  "level": {
+                    "type": "integer",
+                    "description": "Logged level of this message INF(2)SUC(3)WRN(4)ERR(5)",
+                    "minimum": 0,
+                    "maximum": 7
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Step message/status",
+                    "minLength": 1
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "description": "ISO 8601 timestamp",
+                    "format": "date-time"
+                  }
+                },
+                "required": ["step", "message", "timestamp"],
+                "additionalProperties": false
+              },
+              "minItems": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["flow"],
+  "additionalProperties": false
+}

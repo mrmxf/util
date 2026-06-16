@@ -1,0 +1,104 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  build-golang — callable workflow: multiplatform Go build via `clog build`.
+#
+#  Phase 9½ thin rewrite: the ~140-line inline event/ref bash is gone. clog is
+#  installed by the pinned, checksum-verified setup-clog action (no secret-eval,
+#  audit F1); the event is normalized by `clog ci resolve` (testable Go, A);
+#  the work is `clog build`; reporting is `clog SlackStash`. Logic lives in
+#  clog, not YAML — see on.workflow_call.inputs for params.
+
+name: build-golang
+run-name: ${{ github.workflow }}(${{ github.event_name }}) 🥷${{ github.actor }}
+
+on:
+  workflow_call:
+    inputs:
+      docker_ns:     { required: false, type: string }  # docker login acct ('' = none)
+      artifact-name: { required: false, type: string }  # artifact name ('' = none)
+      make:          { required: false, type: string }  # MAKE override for clog build
+      bcTitle:       { required: false, type: string }  # slack toast title
+      clog-ref:      { required: false, type: string }  # clog version (''=.clog-version)
+      clog-repo:     { required: false, type: string, default: mrmxf/clog-sample }
+    secrets:
+      webhook_slack:       { required: false }  # slack channel webhook ('' = no notify)
+      docker_pat:          { required: false }  # docker login password
+      clog_download_token: { required: false }  # token for a private clog-repo
+
+# Least-privilege default token (F4): build needs only to read the repo.
+permissions:
+  contents: read
+
+# One in-flight run per ref; newer pushes cancel older ones (F8).
+concurrency:
+  group: build-golang-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-golang:
+    # Authorized actors (mrmxf) or scheduled runs only; skip push+tag so a tag
+    # push doesn't show a false failure (use `>-` so newlines fold to spaces).
+    if: >-
+      ${{ (contains(fromJSON('["mrmxf"]'), github.event.sender.login) ||
+           github.event_name == 'schedule') &&
+          (github.event_name != 'push' || github.ref_type != 'tag') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: setup-clog
+        uses: mrmxf/util/.github/actions/setup-clog@workflows-v1
+        with:
+          clog-ref: ${{ inputs.clog-ref }}
+          clog-repo: ${{ inputs.clog-repo }}
+          token: ${{ secrets.clog_download_token }}
+      - name: resolve event → ref/repo/depth/verb
+        run: |
+          clog ci resolve --format env >> "$GITHUB_ENV"
+          clog ci resolve   # echo the JSON to the log for debugging
+      - name: checkout ${{ env.repo }} @ ${{ env.ref }} (depth ${{ env.depth }})
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: ${{ env.depth }}
+          lfs: true
+          ref: ${{ env.ref }}
+          repository: ${{ env.repo }}
+          submodules: recursive
+      - name: production checkout (scheduled runs)
+        if: env.is_production == 'true'
+        run: clog BC git checkout production
+      - name: login to Docker Hub
+        if: inputs.docker_ns != ''
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          username: ${{ inputs.docker_ns }}
+          password: ${{ secrets.docker_pat }}
+      - name: install toolchain (golang, slsa-verifier, ko)
+        run: |
+          clog install golang        "+logging"
+          source ~/.bashrc
+          clog install slsa-verifier "+logging"
+          clog install ko            "+logging"
+      - name: build
+        env:
+          MAKE: ${{ inputs.make }}
+          DOCKER_NS: ${{ inputs.docker_ns }}
+        run: '[ -z "$MAKE" ] && clog build || clog build MAKE "$MAKE"'
+      - name: upload artifact ${{ inputs.artifact-name }}
+        if: ${{ inputs.artifact-name }}
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ inputs.artifact-name }}
+          retention-days: 2
+          path: tmp
+      - name: notify-team (slack)
+        if: always()
+        env:
+          HOOK_SLACK: ${{ secrets.webhook_slack }}
+          bcTitle: ${{ inputs.bcTitle }}
+        run: |
+          [ -z "$HOOK_SLACK" ] && { clog Log -W "HOOK_SLACK empty — no Slack notify"; exit 0; }
+          md="• job ${{ github.job }} from $(basename ${{ github.workflow_ref }} | cut -d'@' -f1)\n"
+          md="$md• repo ${{ env.repo }} at ${{ env.url }}\n• ref ${{ env.ref }} depth ${{ env.depth }}\n"
+          clog SlackStash "$bcTitle" --md "$md"

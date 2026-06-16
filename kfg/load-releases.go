@@ -31,6 +31,16 @@ func CurrentRelease() *AppRelease {
 	return &(*releaseSliceCache)[0]
 }
 
+// Releases returns the full loaded release list (current release first), or nil
+// if Konfigure()/LoadReleases() have not yet populated the cache. The slice is
+// the live cache — callers must not mutate it.
+func Releases() []AppRelease {
+	if releaseSliceCache == nil {
+		return nil
+	}
+	return *releaseSliceCache
+}
+
 // LoadReleases populates a slice of type []AppRelease.
 //
 // How it works:

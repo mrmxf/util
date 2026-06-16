@@ -1,0 +1,119 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  build-hugo — callable workflow: build a Hugo site to a container via hugo+ko.
+#
+#  Phase 9½ thin rewrite (Workstream C): setup-clog bootstrap (no secret-eval,
+#  F1), `clog ci resolve` event normalization (A), least-privilege permissions,
+#  timeout, concurrency and SHA-pinned actions (F4/F5/F8 — trivy was @master).
+
+name: build-hugo
+run-name: ${{ github.workflow }}(${{ github.event_name }}) 🥷${{ github.actor }}
+
+on:
+  workflow_call:
+    inputs:
+      docker_ns:     { required: true,  type: string }  # docker login account
+      artifact-name: { required: false, type: string }
+      make:          { required: false, type: string }  # MAKE override for clog build
+      bcTitle:       { required: false, type: string }
+      clog-ref:      { required: false, type: string }
+      clog-repo:     { required: false, type: string, default: mrmxf/clog-sample }
+    secrets:
+      webhook_slack:       { required: false }
+      docker_pat:          { required: true }
+      cf_account_id:       { required: false }  # cloudflare bypass (optional)
+      cf_zone_id:          { required: false }
+      cf_api_token:        { required: false }
+      clog_download_token: { required: false }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-hugo-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-hugo:
+    if: >-
+      ${{ (contains(fromJSON('["mrmxf", "charlottesweb2"]'), github.event.sender.login) ||
+           github.event_name == 'schedule') &&
+          (github.event_name != 'push' || github.ref_type != 'tag') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAS_CF: ${{ secrets.cf_account_id && secrets.cf_zone_id && secrets.cf_api_token && 'CF-bypass' || '' }}
+    steps:
+      - name: bypass Cloudflare
+        if: env.HAS_CF != ''
+        uses: xiaotianxt/bypass-cloudflare-for-github-action@0c44a8bb3b1c9d370e48be2becf88ef33de8d57e # v2.1.0
+        with:
+          cf_account_id: ${{ secrets.cf_account_id }}
+          cf_zone_id: ${{ secrets.cf_zone_id }}
+          cf_api_token: ${{ secrets.cf_api_token }}
+      - name: setup-clog
+        uses: mrmxf/util/.github/actions/setup-clog@workflows-v1
+        with:
+          clog-ref: ${{ inputs.clog-ref }}
+          clog-repo: ${{ inputs.clog-repo }}
+          token: ${{ secrets.clog_download_token }}
+      - name: resolve event → ref/repo/depth/verb
+        run: |
+          clog ci resolve --format env >> "$GITHUB_ENV"
+          clog ci resolve
+      - name: checkout ${{ env.repo }} @ ${{ env.ref }} (depth ${{ env.depth }})
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: ${{ env.depth }}
+          lfs: true
+          ref: ${{ env.ref }}
+          repository: ${{ env.repo }}
+          submodules: recursive
+      - name: production checkout (scheduled runs)
+        if: env.is_production == 'true'
+        run: clog BC git checkout production
+      - name: login to Docker Hub
+        if: inputs.docker_ns != ''
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          username: ${{ inputs.docker_ns }}
+          password: ${{ secrets.docker_pat }}
+      - name: install toolchain (golang, slsa-verifier, hugo, ko)
+        run: |
+          clog install golang        "+logging"
+          source ~/.bashrc
+          clog install slsa-verifier "+logging"
+          clog install hugo          "+logging"
+          clog install ko            "+logging"
+      - name: build
+        env:
+          MAKE: ${{ inputs.make }}
+          DOCKER_NS: ${{ inputs.docker_ns }}
+        run: '[ -z "$MAKE" ] && clog build || clog build MAKE "$MAKE"'
+      - name: scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.repo }}
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+      - name: upload artifact ${{ inputs.artifact-name }}
+        if: ${{ inputs.artifact-name }}
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ inputs.artifact-name }}
+          retention-days: 2
+          path: |
+            kodata
+            tmp
+      - name: notify-team (slack)
+        if: always()
+        env:
+          HOOK_SLACK: ${{ secrets.webhook_slack }}
+          bcTitle: ${{ inputs.bcTitle }}
+        run: |
+          [ -z "$HOOK_SLACK" ] && { clog Log -W "HOOK_SLACK empty — no Slack notify"; exit 0; }
+          md="• job ${{ github.job }} from $(basename ${{ github.workflow_ref }} | cut -d'@' -f1)\n"
+          md="$md• repo ${{ env.repo }} at ${{ env.url }}\n• ref ${{ env.ref }} depth ${{ env.depth }}\n"
+          clog SlackStash "$bcTitle" --md "$md"

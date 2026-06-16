@@ -1,0 +1,87 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  deploy-s3 — callable workflow: deploy an artifact to S3 via `clog deploy`.
+#
+#  Phase 9½ thin rewrite (Workstream C): setup-clog bootstrap (no secret-eval,
+#  F1), `clog ci resolve` event normalization (A), least-privilege permissions,
+#  timeout, concurrency and SHA-pinned actions (F4/F5/F8).
+#
+#  SECURITY TODO (Workstream E / audit F2): migrate AWS auth from the
+#  long-lived aws_access_key_id / aws_secret_access_key below to OIDC —
+#  add `permissions: id-token: write`, an `aws-role-to-assume` input, and the
+#  pinned aws-actions/configure-aws-credentials step
+#  (5579c002bb4778aa43395ef1df492868a9a1c83f # v4.0.2) — then retire the keys.
+
+name: deploy-s3
+run-name: ${{ github.workflow }}(${{ github.event_name }}) 🥷${{ github.actor }}
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name: { required: true,  type: string }  # artifact to deploy
+      make:          { required: false, type: string }  # MAKE override for clog deploy
+      bcTitle:       { required: false, type: string }  # slack toast title
+      clog-ref:      { required: false, type: string }  # clog version (''=.clog-version)
+      clog-repo:     { required: false, type: string, default: mrmxf/clog-sample }
+    secrets:
+      webhook_slack:         { required: false }
+      aws_access_key_id:     { required: false }  # F2: retire for OIDC (E)
+      aws_secret_access_key: { required: false }  # F2: retire for OIDC (E)
+      s3_bucket:             { required: true }
+      clog_download_token:   { required: false }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-s3-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false   # don't cancel an in-flight deploy
+
+jobs:
+  deploy-s3:
+    if: ${{ contains(fromJSON('["mrmxf"]'), github.event.sender.login) || github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: setup-clog
+        uses: mrmxf/util/.github/actions/setup-clog@workflows-v1
+        with:
+          clog-ref: ${{ inputs.clog-ref }}
+          clog-repo: ${{ inputs.clog-repo }}
+          token: ${{ secrets.clog_download_token }}
+      - name: resolve event → ref/repo/depth/verb
+        run: |
+          clog ci resolve --format env >> "$GITHUB_ENV"
+          clog ci resolve
+      - name: checkout ${{ env.repo }} @ ${{ env.ref }} (depth ${{ env.depth }})
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: ${{ env.depth }}
+          lfs: true
+          ref: ${{ env.ref }}
+          repository: ${{ env.repo }}
+          submodules: recursive
+      - name: download artifact ${{ inputs.artifact-name }} → tmp/
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: tmp
+      - name: deploy to s3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.aws_access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.aws_secret_access_key }}
+          S3_BUCKET: ${{ secrets.s3_bucket }}
+          MAKE: ${{ inputs.make }}
+        run: '[ -z "$MAKE" ] && clog deploy || clog deploy MAKE "$MAKE"'
+      - name: notify-team (slack)
+        if: always()
+        env:
+          HOOK_SLACK: ${{ secrets.webhook_slack }}
+          bcTitle: ${{ inputs.bcTitle }}
+        run: |
+          [ -z "$HOOK_SLACK" ] && { clog Log -W "HOOK_SLACK empty — no Slack notify"; exit 0; }
+          md="• job ${{ github.job }} from $(basename ${{ github.workflow_ref }} | cut -d'@' -f1)\n"
+          md="$md• repo ${{ env.repo }} at ${{ env.url }}\n• ref ${{ env.ref }} depth ${{ env.depth }}\n"
+          clog SlackStash "$bcTitle" --md "$md"

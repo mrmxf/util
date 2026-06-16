@@ -73,6 +73,25 @@ func NewTeeLogger(path string, level slog.Level) (*slog.Logger, *os.File, error)
     return newLogger, fileHandle, err
 }
 
+// UsePrettyWithDbgTmpLogger sets the global logger to a MultiHandler that fans
+// to a coloured PrettyHandler on stderr (at consoleLevel) and a JSON debug log
+// at /tmp/clog-YYYY-MM-DD.log (always at slog.LevelDebug).
+//
+// The returned io.Closer wraps the log file. Callers should defer it in main:
+//
+//	defer slogger.UsePrettyWithDbgTmpLogger(level).Close()
+//
+// or use the package-level CloseLogger() if SetLogger was used to initialise.
+// If the file cannot be opened the logger falls back to console-only.
+func UsePrettyWithDbgTmpLogger(level slog.Level) (io.Closer, error) {
+	h, closer, err := NewPrettyWithDbgTmpHandler(level)
+	logCloser = closer
+	Logger = slog.New(h)
+	slog.SetDefault(Logger)
+	logLevel = level
+	return closer, err
+}
+
 func UseJSONLogger(level slog.Level) {
     Logger = slog.New(slog.NewJSONHandler(os.Stderr,
         &slog.HandlerOptions{Level: level}))

@@ -11,6 +11,7 @@ package slogger
 // in your main.init()
 
 import (
+    "io"
     "log/slog"
     "runtime"
 )
@@ -36,6 +37,7 @@ const (
     StyleTee
     StyleJob
     StyleNats
+    StylePrettyWithDbgTmp // PrettyHandler to stderr + JSONHandler to /tmp/clog-YYYY-MM-DD.log
 )
 
 // add a string function to Sprintf("%s") our new type
@@ -53,6 +55,8 @@ func (s SlogStyle) String() string {
         return "    tee"
     case StyleNats:
         return "   nats"
+    case StylePrettyWithDbgTmp:
+        return "dbgtmp"
     }
     return "unknown"
 }
@@ -60,7 +64,22 @@ func (s SlogStyle) String() string {
 // the defaults
 // var defaultLogLevel = slog.LevelDebug  //use this for init tracing
 var defaultLogLevel = slog.LevelInfo
-var defaultLogStyle = StylePretty
+var defaultLogStyle = StylePrettyWithDbgTmp
+
+// logCloser holds the Closer for the active logger's file handle (if any).
+// Call CloseLogger() on app exit to flush and close it.
+var logCloser io.Closer
+
+// CloseLogger closes any open file handle used by the current logger (e.g. the
+// debug tmp log). Safe to call when no file is open. Typically deferred in main:
+//
+//	defer slogger.CloseLogger()
+func CloseLogger() error {
+    if logCloser != nil {
+        return logCloser.Close()
+    }
+    return nil
+}
 
 // use this function to set a log level from a config file
 func SetLogger(level slog.Level, style SlogStyle) {
@@ -73,11 +92,12 @@ func SetLogger(level slog.Level, style SlogStyle) {
         UseJSONLogger(level)
     case StyleJob:
         UseJobLogger(level)
+    case StylePrettyWithDbgTmp:
+        UsePrettyWithDbgTmpLogger(level)
     default:
         // there is no default Tee logger as it needs a file path
-        SetLogger(level, defaultLogStyle)
+        SetLogger(level, StylePretty)
     }
-
 }
 
 // get the active log levels for a split console / cicd logging experience

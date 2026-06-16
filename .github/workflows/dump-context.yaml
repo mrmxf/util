@@ -1,0 +1,57 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  dump-context — callable debug workflow: dump GitHub/env/vars/job contexts.
+#
+#  Phase 9½ hardening (audit F6): the `toJson(secrets)` dump and the raw
+#  GITHUB_TOKEN echo are REMOVED — never print credentials to logs. Read-only
+#  token, short timeout. Debug use only.
+
+name: dump-context
+run-name: 🥷${{ github.actor }} 🏃 dump-context
+env:
+  CLOG_FLOW: "mrmxf/util/.github/workflows/dump-context"
+
+on: [workflow_call]
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dump GitHub context
+        env:
+          CTX: ${{ toJson(github) }}
+        run: echo "$CTX"
+      - name: Dump env context
+        env:
+          CTX: ${{ toJson(env) }}
+        run: echo "$CTX"
+      - name: Dump vars context
+        env:
+          CTX: ${{ toJson(vars) }}
+        run: echo "$CTX"
+      - name: Dump job context
+        env:
+          CTX: ${{ toJson(job) }}
+        run: echo "$CTX"
+      - name: Dump runner context
+        env:
+          CTX: ${{ toJson(runner) }}
+        run: echo "$CTX"
+      - name: Show default environment variables (no secrets)
+        run: |
+          echo "job($GITHUB_JOB) action($GITHUB_ACTION) run($GITHUB_RUN_ID) by($GITHUB_ACTOR)"
+          echo "reusable workflow ${{ env.CLOG_FLOW }}"
+          for v in GITHUB_WORKFLOW GITHUB_RUN_ID GITHUB_RUN_NUMBER GITHUB_RUN_ATTEMPT \
+                   GITHUB_JOB GITHUB_ACTION GITHUB_ACTIONS GITHUB_REPOSITORY \
+                   GITHUB_REPOSITORY_OWNER GITHUB_WORKSPACE GITHUB_SHA GITHUB_REF \
+                   GITHUB_REF_NAME GITHUB_REF_TYPE GITHUB_EVENT_NAME GITHUB_EVENT_PATH \
+                   GITHUB_ACTOR GITHUB_TRIGGERING_ACTOR GITHUB_SERVER_URL GITHUB_API_URL \
+                   RUNNER_OS RUNNER_ARCH RUNNER_NAME RUNNER_TEMP RUNNER_TOOL_CACHE; do
+            printf '%-24s %s\n' "$v" "${!v}"
+          done

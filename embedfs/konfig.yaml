@@ -72,27 +72,38 @@ check:
       - finally: clog BC stashLog -1 check -2 pre-build -I "       tag-ref    $(clog BC git tag ref)"
       - finally: clog BC stashLog -1 check -2 pre-build -I "      tag-prod    $(clog BC git tag prod)"
       - finally: clog BC stashLog -1 check -2 pre-build -I "    tag-origin    $(clog BC git tag origin)"
-      - try: '[[ "$(clog BC git tag origin)" == "$(clog BC git tag ref)" ]]'
+      - try: |
+          # tag sync check is meaningful in CI — don't skip
+          [[ "$(clog BC git tag origin)" == "$(clog BC git tag ref)" ]]
         ok:    clog BC stashLog -1 check -2 pre-build  -3 "origin tag" -I "Ok  tag-origin == tag-ref"
         catch: clog BC stashLog -1 check -2 pre-build -3 "origin tag" -W "    tag-origin != tag-ref"
       - finally: clog BC stashLog -1 check -2 pre-build -I "     hash-head    $(clog BC git hash head)"
       - finally: clog BC stashLog -1 check -2 pre-build -I "   hash-origin    $(clog BC git hash origin)"
-      - try:   clog BC git tree clean
+      - try: |
+          # CI always checks out clean — skip tree checks to avoid false warnings
+          [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
+          clog BC git tree clean
         ok:    clog BC stashLog -1 check -2 pre-build -3 "tree clean"  -I "Ok working tree clean"
         catch: |
           XIT=0; FLAG="-W"
           clog BC is build prod && XIT=1 && FLAG="-E"
           clog BC stashLog -1 check -2 pre-build -3 "tree clean" $FLAG "   working tree NOT clean"
           exit $XIT
-      - try:   clog BC git tree ahead XIT=0; FLAG="-E"
-        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree ahead" -I "Ok working tree not ahead of origin"
-        catch: clog BC stashLog -1 check -2 pre-build -3 "tree ahead" -W "   working tree is ahead of origin"
-      - try:   clog BC git tree behind
+      - try: |
+          [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
+          clog BC git tree ahead
+        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree ahead"  -I "Ok working tree not ahead of origin"
+        catch: clog BC stashLog -1 check -2 pre-build -3 "tree ahead"  -W "   working tree is ahead of origin"
+      - try: |
+          [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
+          clog BC git tree behind
         ok:    clog BC stashLog -1 check -2 pre-build -3 "tree behind" -I "Ok working tree not behind origin"
         catch: clog BC stashLog -1 check -2 pre-build -3 "tree behind" -W "   working tree is behind origin"
-      - try:   clog BC git tree unstaged
-        ok:    clog BC stashLog -1 check -2 pre-build -3 "unstaged changes" -I "Ok working tree has no dangling changes"
-        catch: clog BC stashLog -1 check -2 pre-build -3 "unstaged changes" -W "   working tree has unstaged changes"
+      - try: |
+          [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
+          clog BC git tree unstaged
+        ok:    clog BC stashLog -1 check -2 pre-build -3 "unstaged"    -I "Ok working tree has no dangling changes"
+        catch: clog BC stashLog -1 check -2 pre-build -3 "unstaged"    -W "   working tree has unstaged changes"
 
 # ▬▬▬▬ golang checker generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
   golang:
@@ -106,6 +117,18 @@ check:
         catch: |
           clog BC stashLog -1 check -2 golang -3 "staticcheck" -S "   staticcheck found problems"
           echo $STDOUTERR
+      - name: golangci-lint
+        try: |
+          # Graceful skip if not installed — CI installs it via golangci-lint job
+          which golangci-lint 2>/dev/null || {
+            clog BC stashLog -1 check -2 golang -3 golangci -W "golangci-lint not installed locally — clog install golangci-lint"
+            exit 0
+          }
+          golangci-lint run --timeout=5m
+        ok:   clog BC stashLog -1 check -2 golang -3 golangci -S "golangci-lint passed"
+        catch: |
+          clog BC stashLog -1 check -2 golang -3 golangci -E "golangci-lint found issues"
+          exit 1
 # ▬▬▬▬ hugo checker generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
   hugo:
     blocks:
@@ -174,18 +197,13 @@ check:
         ok: clog     bc stashLog -1 check -2 hugo -3 "remote ref ok" -I "tag($(clog BC git tag prod)) exists at remote origin"
         catch: 'clog bc stashLog -1 check -2 hugo -3 "remote ref ok" -E "git ls-remote --tags missing tag $(clog BC git tag prod)";exit 1'
 # ▬▬▬ tool check generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+# Generic baseline — projects override check.tools in their .clog.yaml
   tools:
+    blocks:
       - name: golang
         try: clog BC semver "$(clog project needs golang)" "$(clog project has golang)"
+        ok:   clog BC stashLog -1 check -2 tools -3 golang -I "golang $(clog project has golang) ok"
         catch: clog BC stashLog -1 check -2 tools -3 golang -E "wrong go version. Need $(clog project needs golang)"
-      - name: yq
-        try: which yq 2>/dev/null
-        catch: clog BC stashLog -1 check -2 tools -3 yq -E "yq not present.  $(clog project needs golang)"
-      - name: aws cli v2
-        try: |
-          vv="$(aws --version 2>/dev/null|grep -oE '\/[0-9]+\.[0-9]+\.[0-9]+'|head -1|tr -d [/]|head -c 2)"
-          [[ "2." != "$vv)" ]] && exit 1
-        catch:  clog BC stashLog -1 check -2 tools -3 aws -E "aws cli v2 not present."
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 #               _                       _
 #   ||_  _ _   (_)  _ __   _ __   ___  | |_   ___

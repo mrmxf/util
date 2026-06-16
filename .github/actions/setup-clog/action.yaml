@@ -1,0 +1,64 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  setup-clog — install a pinned, checksum-verified clog binary
+#
+#  Replaces the legacy `eval "$(secrets.get_clog)"` bootstrap (audit F1). The
+#  version is an explicit input (default: the consumer repo's .clog-version),
+#  the binary comes from a GitHub Release, and its sha256 is verified before
+#  use. Any genuine secret (a private download token) is passed as `token`,
+#  used only by the download step — never executed.
+#
+#  Usage:
+#    - uses: mrmxf/util/.github/actions/setup-clog@workflows-v1
+#      with:
+#        clog-ref: v0.10.11        # optional; default reads .clog-version
+#        clog-repo: mrmxf/clog-app # optional; default mrmxf/clog-sample
+#        token: ${{ secrets.clog_download_token }}  # optional (private repos)
+
+name: setup-clog
+description: Install a pinned, checksum-verified clog binary and add it to PATH
+
+inputs:
+  clog-ref:
+    description: "clog release tag to install (default: read from .clog-version)"
+    required: false
+    default: ""
+  clog-repo:
+    description: GitHub owner/repo holding the clog release
+    required: false
+    default: mrmxf/clog-sample
+  version-file:
+    description: path to the version pin file (used when clog-ref is empty)
+    required: false
+    default: .clog-version
+  token:
+    description: token for downloading from a private release repo (optional)
+    required: false
+    default: ""
+  skip-verify:
+    description: set to "1" to skip checksum verification (NOT advised)
+    required: false
+    default: "0"
+
+outputs:
+  version:
+    description: the clog version that was installed
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      env:
+        CLOG_VERSION: ${{ inputs.clog-ref }}
+        CLOG_VERSION_FILE: ${{ inputs.version-file }}
+        CLOG_REPO: ${{ inputs.clog-repo }}
+        CLOG_TOKEN: ${{ inputs.token }}
+        CLOG_SKIP_VERIFY: ${{ inputs.skip-verify }}
+      run: |
+        dir="$("${{ github.action_path }}/get-clog.sh")"
+        echo "$dir" >> "$GITHUB_PATH"
+        echo "version=$("$dir/clog" --version 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
