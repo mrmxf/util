@@ -20,6 +20,9 @@ on:
       bcTitle:       { required: false, type: string }
       clog-ref:      { required: false, type: string }
       clog-repo:     { required: false, type: string, default: mrmxf/clog-sample }
+      # Opt in to building a plain branch push (a staging build). Off by default
+      # so existing consumers keep the release-only behaviour described below.
+      on-branch-push: { required: false, type: boolean, default: false }
     secrets:
       webhook_slack:       { required: false }
       docker_pat:          { required: true }
@@ -38,17 +41,27 @@ concurrency:
 jobs:
   build-hugo:
     # Scope (approach A): act on a *release* — a v-tag push — or a scheduled /
-    # manually-dispatched run; NOT on plain branch pushes. Pushing a commit and
-    # its tag fires two `push` events (branch + tag); keying the build off the
-    # v-tag means the tag run does the work and the branch run is skipped, so a
-    # release never builds twice. Non-'v' tags and unauthorized actors are
-    # skipped. (`>-` folds newlines to spaces before GitHub parses `${{ }}`.)
+    # manually-dispatched run. Pushing a commit and its tag fires two `push`
+    # events (branch + tag); keying the build off the v-tag means the tag run
+    # does the work and the branch run is skipped, so a release never builds
+    # twice. Non-'v' tags and unauthorized actors are skipped.
+    #
+    # `on-branch-push: true` additionally builds a plain branch push. That is
+    # what a STAGING site needs — every push to main republishes staging — and
+    # it does not reintroduce the double-build, because the extra clause still
+    # excludes any ref under refs/tags/. Consumers that only publish on release
+    # leave the input at its default and are unaffected.
+    # (`>-` folds newlines to spaces before GitHub parses `${{ }}`.)
     if: >-
       ${{ github.event_name == 'schedule' ||
           (github.event_name == 'workflow_dispatch' &&
            contains(fromJSON('["mrmxf", "charlottesweb2"]'), github.event.sender.login)) ||
           (github.event_name == 'push' &&
            startsWith(github.ref, 'refs/tags/v') &&
+           contains(fromJSON('["mrmxf", "charlottesweb2"]'), github.event.sender.login)) ||
+          (inputs.on-branch-push &&
+           github.event_name == 'push' &&
+           !startsWith(github.ref, 'refs/tags/') &&
            contains(fromJSON('["mrmxf", "charlottesweb2"]'), github.event.sender.login)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

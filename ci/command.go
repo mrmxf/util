@@ -34,10 +34,73 @@ var resolveCmd = &cobra.Command{
 	RunE:          runResolve,
 }
 
+var envCmd = &cobra.Command{
+	Use:   "env [get <key>]",
+	Short: "print the environment this event builds (dev|stage|prod), or one of its settings",
+	Long:  envHelp,
+	// SilenceErrors is deliberately NOT set here (unlike `resolve`). Neither
+	// host app prints the error a RunE returns, so silencing cobra too would
+	// turn "CLOG_ENV is a typo" into a bare exit 1 in a CI log. A wrong
+	// environment publishes the wrong site - it has to say so out loud.
+	SilenceUsage: true,
+	Args:         cobra.MaximumNArgs(2),
+	RunE:         runEnv,
+}
+
 func init() {
 	resolveCmd.Flags().StringVar(&formatFlag, "format", "json",
 		"output format: json (default) or env (KEY=value lines for $GITHUB_ENV / dotenv)")
 	Command.AddCommand(resolveCmd)
+	Command.AddCommand(envCmd)
+}
+
+// runEnv implements the three shapes of `clog ci env`:
+//
+//	clog ci env              → the environment name
+//	clog ci env show         → the whole resolved row, as KEY=value lines
+//	clog ci env get <key>    → one setting
+//
+// Names print without a trailing context so they compose directly:
+//
+//	hugo build --baseURL "$(clog ci env get base-url)"
+func runEnv(cmd *cobra.Command, args []string) error {
+	name, err := ResolveEnvName(osEnv())
+	if err != nil {
+		return err
+	}
+	out := cmd.OutOrStdout()
+
+	switch {
+	case len(args) == 0:
+		_, err := fmt.Fprintln(out, name)
+		return err
+
+	case args[0] == "show":
+		row, err := EnvRow(name)
+		if err != nil {
+			return err
+		}
+		for _, key := range rowKeys(row) {
+			if _, err := fmt.Fprintf(out, "%s=%s\n", key, renderValue(row[key])); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	case args[0] == "get":
+		if len(args) != 2 {
+			return fmt.Errorf("`ci env get` needs exactly one key, e.g. `clog ci env get base-url`")
+		}
+		val, err := EnvGet(name, args[1])
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(out, val)
+		return err
+
+	default:
+		return fmt.Errorf("unknown `ci env` sub-command %q (want `get <key>` or `show`)", args[0])
+	}
 }
 
 func runResolve(cmd *cobra.Command, args []string) error {
