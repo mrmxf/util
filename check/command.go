@@ -10,6 +10,7 @@ package check
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"runtime"
 
 	"github.com/mrmxf/util/kfg"
@@ -161,6 +162,7 @@ var Command = &cobra.Command{
 		// check a group was specified
 		if len(args) == 0 {
 			slog.Error("cannot run Check, no group specified", "len(args)", 0)
+			ListGroups(os.Stdout)
 			return cmd.Help()
 		}
 
@@ -173,6 +175,7 @@ var Command = &cobra.Command{
 		groupKey := KfgKey + "." + args[0]
 		if kfg.Raw.Get(groupKey) == nil {
 			slog.Error("cannot find check group in clog.yaml", "key", groupKey)
+			ListGroups(os.Stdout)
 			return fmt.Errorf("cannot find check group(%s) in clog.yaml", groupKey)
 		}
 

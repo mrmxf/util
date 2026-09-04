@@ -219,7 +219,6 @@ snippets:
   #   ||             
   bc-artifacts: echo "tmp/artifacts"
   bc-main-prod-tag: yq -r 'first(.[] | select(.type=="main" and .build=="prod") | .version)' "$(clog BC releases yaml)"
-  bc-main-repo: echo "metarex-media/www-metarex-media"
   bc-log-divider: eval "$(clog Crayon)";for i in {1..8};do HR="$HR\e[09${i}m▬▬▬▬▬▬▬▬▬$cE|";done;printf "$HR$cX\n"
   # worker function instagram ------------------------------------------------------------------------------------------
   bc-instagram: |
