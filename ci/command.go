@@ -12,6 +12,7 @@ import (
 )
 
 var formatFlag string
+var configHelpFlag bool
 
 // Command is the `clog ci` cobra command. It groups CI-orchestration helpers;
 // today the only sub-command is `resolve`.
@@ -20,6 +21,10 @@ var Command = &cobra.Command{
 	Short: "ci <sub-command> - normalize CI/CD event context for build steps",
 	Long:  longHelp,
 	Run: func(cmd *cobra.Command, args []string) {
+		if configHelpFlag {
+			fmt.Fprintln(cmd.OutOrStdout(), configHelp)
+			return
+		}
 		cmd.Help()
 	},
 }
@@ -50,7 +55,16 @@ var envCmd = &cobra.Command{
 func init() {
 	resolveCmd.Flags().StringVar(&formatFlag, "format", "json",
 		"output format: json (default) or env (KEY=value lines for $GITHUB_ENV / dotenv)")
+	Command.Flags().BoolVar(&configHelpFlag, "config-help", false,
+		"print how to configure Infisical OIDC secrets for CI (identities, subjects, .clog.yaml keys)")
+	runCmd.Flags().BoolVar(&runDryRunFlag, "dry-run", false, "fetch and report secrets (names only) but do not run the command")
+	runCmd.Flags().SetInterspersed(false) // flags after <command> belong to the command
 	Command.AddCommand(resolveCmd)
+	Command.AddCommand(runCmd)
+	policyCmd.Flags().StringVar(&policyFormatFlag, "format", "json", "output format: json (default) or env (clog_env/do_build/do_deploy lines for $GITHUB_ENV)")
+	Command.AddCommand(policyCmd)
+	Command.AddCommand(shouldCmd)
+	Command.AddCommand(requireCmd)
 	Command.AddCommand(envCmd)
 }
 
