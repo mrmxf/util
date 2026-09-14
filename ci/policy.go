@@ -32,6 +32,9 @@ const (
 type Policy struct {
 	Build  []Event               `json:"build"`
 	Deploy map[string]DeployRule `json:"deploy"`
+	// Actors, when set, limits builds and deploys to runs triggered by these
+	// accounts (GitHub login / GitLab username), matched case-insensitively.
+	Actors []string `json:"actors"`
 }
 
 // DeployRule allows a deploy to one environment. A run deploys when its ref
@@ -49,6 +52,7 @@ type Decision struct {
 	Env          string `json:"env"`
 	Event        Event  `json:"event"`
 	Ref          string `json:"ref"`
+	Actor        string `json:"actor"`
 	IsTag        bool   `json:"is_tag"`
 	Build        bool   `json:"build"`
 	BuildReason  string `json:"build_reason"`
@@ -109,12 +113,14 @@ func Decide(env Env) (Decision, error) {
 	}
 	pol := cfg.Policy
 
-	d := Decision{Env: clogEnv, Event: eventOf(r), Ref: refName(env, r), IsTag: r.IsTag}
+	d := Decision{Env: clogEnv, Event: eventOf(r), Ref: refName(env, r), Actor: r.Actor, IsTag: r.IsTag}
 	if r.CI == PlatformLocal {
 		d = previewLocal(env, r, d)
 	}
 
 	switch {
+	case !actorAllowed(pol.Actors, r):
+		d.BuildReason = fmt.Sprintf("actor %q is not in ci.policy.actors %v", r.Actor, pol.Actors)
 	case len(pol.Build) == 0:
 		d.Build, d.BuildReason = true, "no ci.policy.build list: every event builds"
 	case containsEvent(pol.Build, d.Event):
@@ -208,6 +214,19 @@ func previewLocal(env Env, r Resolution, d Decision) Decision {
 	}
 	d.Event, d.IsTag = EventBranch, false
 	return d
+}
+
+// actorAllowed applies ci.policy.actors in CI; laptops are always allowed.
+func actorAllowed(actors []string, r Resolution) bool {
+	if len(actors) == 0 || r.CI == PlatformLocal {
+		return true
+	}
+	for _, a := range actors {
+		if strings.EqualFold(strings.TrimSpace(a), r.Actor) {
+			return true
+		}
+	}
+	return false
 }
 
 func containsEvent(list []Event, e Event) bool {

@@ -18,6 +18,7 @@ Sub-commands:
   require   fail early if the secrets/config a verb needs are missing
   policy    print what ci.policy decides for this run (build? deploy? why?)
   should    exit 0/1: does ci.policy allow build | deploy for this run?
+  get       print a non-secret config value (ci.artifact, ci.title, ...)
 
 See 'clog ci resolve --help' and 'clog ci env --help' for details.
 Setting up CI secrets (Infisical OIDC, identities, .clog.yaml keys): clog ci --config-help`
@@ -142,6 +143,7 @@ Reads ci.policy from .clog.yaml:
 
   ci:
     policy:
+      actors: [mrmxf]                        # optional: only these accounts build/deploy in CI
       build: [branch, tag, dispatch]         # events that build; missing list = build always
       deploy:                                # per clog env (see clog ci env): stage, prod
         stage: {branches: [main, rc, dev]}

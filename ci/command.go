@@ -63,6 +63,8 @@ func init() {
 	Command.AddCommand(runCmd)
 	policyCmd.Flags().StringVar(&policyFormatFlag, "format", "json", "output format: json (default) or env (clog_env/do_build/do_deploy lines for $GITHUB_ENV)")
 	Command.AddCommand(policyCmd)
+	getCmd.Flags().BoolVar(&getRequiredFlag, "required", false, "exit 1 when the key is missing or empty")
+	Command.AddCommand(getCmd)
 	Command.AddCommand(shouldCmd)
 	Command.AddCommand(requireCmd)
 	Command.AddCommand(envCmd)

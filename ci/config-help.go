@@ -11,12 +11,14 @@ package ci
 const configHelp = `clog ci --config-help : CI secrets via Infisical OIDC
 
 STATUS
-  implemented: config contract, clog ci run, clog ci require, clog ci policy / clog ci should.
+  implemented: config contract, clog ci run / require / policy / should / get, util workflows v1.
 
 MODEL
   CI yaml     : triggers + OIDC permission + one "clog ci run -- clog <verb>" per job. No secrets.
   .clog.yaml  : every non-secret value, incl. which Infisical project/env/identity to use.
   Infisical   : secrets only. CI logs in with the platform OIDC token (no stored credential).
+  workflows   : mrmxf/util/.github/workflows/{build-golang,build-hugo,deploy-s3}.yaml@workflows-v1
+                  (first step mrmxf/util/.github/actions/clog-prepare); GitLab: util/gitlab/clog.gitlab-ci.yml
   gate        : clog ci policy --format env >> $GITHUB_ENV  -> if: env.do_deploy == 'true'
                   (or in a script:  clog ci should deploy || exit 0)
   flow        : clog ci run -- clog <verb>
@@ -32,7 +34,11 @@ CLOG ENV -> INFISICAL (clog ci env decides; see clog ci env --help)
 
 .CLOG.YAML (keys are lowercase; values below are the contract)
   ci:
+    artifact: "<name>"                       # workflows: build uploads / deploy downloads it
+    title: "<slack title>"
+    docker-ns: "<docker hub account>"        # optional; DOCKER_PAT comes from Infisical
     policy:                                  # clog ci policy --help
+      actors: [<login>]                      # optional: only these accounts build/deploy in CI
       build: [branch, tag, dispatch]         # branch|tag|dispatch|schedule|pr|local
       deploy:                                # keyed by clog env; PRs never deploy
         stage: {branches: [main, rc, dev]}   # globs, * also matches "/"
