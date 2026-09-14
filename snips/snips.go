@@ -52,6 +52,37 @@ func kmdPath(c *cobra.Command, kmd string) string {
 	return fmt.Sprintf("%s %s", c.CommandPath(), kmd)
 }
 
+// overridesKey is the annotation holding the path of the built-in command that
+// a snippet replaced.
+const overridesKey = "overrides"
+
+// addSnippetCmd adds a snippet command to parentCmd. If parentCmd already has a
+// built-in (non-snippet) command of the same name, the built-in is removed so
+// the local snippet deterministically wins, and the replaced command's path is
+// recorded so warnIfOverride can report it when the snippet runs.
+func addSnippetCmd(parentCmd, cmd *cobra.Command) {
+	for _, existing := range parentCmd.Commands() {
+		if existing.Name() == cmd.Name() && existing.Annotations["is-a"] != "snippet" {
+			cmd.Annotations[overridesKey] = existing.CommandPath()
+			slog.Debug("snippet overrides built-in command", "command", existing.CommandPath())
+			parentCmd.RemoveCommand(existing)
+			break
+		}
+	}
+	parentCmd.AddCommand(cmd)
+}
+
+// warnIfOverride warns when the snippet being run (or a snippet group it lives
+// in) replaced a built-in command.
+func warnIfOverride(cmd *cobra.Command) {
+	for c := cmd; c != nil; c = c.Parent() {
+		if builtin := c.Annotations[overridesKey]; builtin != "" {
+			slog.Warn("overriding built-in command", "snippet", cmd.CommandPath(), "built-in", builtin)
+			return
+		}
+	}
+}
+
 func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw RawSnippets) {
 	for kmd, snip := range raw {
 		switch skript := snip.(type) {
@@ -70,6 +101,7 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 					"type":    fmt.Sprintf("%T", skript),
 				},
 				Run: func(cmd *cobra.Command, args []string) {
+					warnIfOverride(cmd)
 					ident := fmt.Sprintf("snippet: %s", cmd.CommandPath())
 					strInt := fmt.Sprintf("%d", skript)
 					slog.Debug(fmt.Sprintf("snippet: %s\n$ %s\n", kmd, strInt))
@@ -80,7 +112,7 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 					os.Exit(exitStatus)
 				},
 			}
-			parentCmd.AddCommand(cmd)
+			addSnippetCmd(parentCmd, cmd)
 			group[Snippet(kmd)] = skript
 
 		case string:
@@ -96,6 +128,7 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 					"type":    fmt.Sprintf("%T", skript),
 				},
 				Run: func(cmd *cobra.Command, args []string) {
+					warnIfOverride(cmd)
 					ident := fmt.Sprintf("snippet: %s", cmd.CommandPath())
 					slog.Debug(fmt.Sprintf("snippet: %s\n$ %s\n", ident, skript))
 					exitStatus, err := scripts.AwaitShellSnippet(skript, nil, args)
@@ -105,7 +138,7 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 					os.Exit(exitStatus)
 				},
 			}
-			parentCmd.AddCommand(cmd)
+			addSnippetCmd(parentCmd, cmd)
 			group[Snippet(kmd)] = skript
 
 		case map[string]interface{}:
@@ -121,12 +154,13 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 					"type":    "node",
 				},
 				Run: func(cmd *cobra.Command, args []string) {
+					warnIfOverride(cmd)
 					cmd.Help()
 					os.Exit(1)
 				},
 			}
 			// add this command stub to the tree and descend
-			parentCmd.AddCommand(cmd)
+			addSnippetCmd(parentCmd, cmd)
 			newGroup := SnippetGroup{}
 			group[Snippet(kmd)] = &newGroup
 			recurseRawMap(cmd, newGroup, depth+1, snip.(map[string]interface{}))
