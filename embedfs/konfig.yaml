@@ -121,7 +121,7 @@ check:
         try: |
           # Graceful skip if not installed — CI installs it via golangci-lint job
           which golangci-lint 2>/dev/null || {
-            clog BC stashLog -1 check -2 golang -3 golangci -W "golangci-lint not installed locally — clog install golangci-lint"
+            clog BC stashLog -1 check -2 golang -3 golangci -W "golangci-lint not installed locally — clog Install golangci-lint"
             exit 0
           }
           golangci-lint run --timeout=5m
@@ -616,242 +616,27 @@ snippets:
   #  (_-<   | | | ' \  (_-< |  _| / _` | | | | |
   #  / _/   |_| |_||_| /__/  \__| \__,_| |_| |_|
   #   ||
-  install:
+  getapp:
     # --- snippets to check install
-    # clog install have golang && echo "Yay, found it" || clog install golang
+    # clog Install have golang && echo "Yay, found it" || clog Install golang
     have:
-      aws: "      aws --version >/dev/null 2>&1"
       clog: "    clog --version >/dev/null 2>&1"
-      curl: "    curl --version >/dev/null 2>&1"
-      docker: "docker --version >/dev/null 2>&1"
-      golang: "    go   version >/dev/null 2>&1"
       godoc: "  which godoc       >/dev/null 2>&1"
-      golangci-lint: "golangci-lint --version >/dev/null 2>&1"
-      glab: "    glab   version >/dev/null 2>&1"
-      gh: "       gdh --version >/dev/null 2>&1"
-      hugo: "    hugo   version >/dev/null 2>&1"
-      jq: "        jq --version >/dev/null 2>&1"
-      ko: "        ko   version >/dev/null 2>&1"
       nvm: "      nvm --version >/dev/null 2>&1"
-      slsa-verifier: "slsa-verifier version >dev/null 2>&1"
       yarn: "    yarn --version >/dev/null 2>&1"
-      yq: "        yq --version >/dev/null 2>&1"
     # install snippets --------------------------------------------------------
-    aws: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      [[ "$(dpkg --print-architecture)" == "amd64" ]] && awsZFB="x86_64"
-      [[ "$(dpkg --print-architecture)" == "arm64" ]] && awsZFB="aarch64"
-      fnLog "installing awsv2 $awsZFB"
-      fnLog "fetching https://awscli.amazonaws.com/awscli-exe-linux-$awsZFB.zip"
-      curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-$awsZFB.zip" -o "/tmp/awscliv2.zip"
-      cd /tmp
-      fnLog "Unzipping cli"
-      unzip -q ./awscliv2.zip
-      fnLog "running installer"
-      sudo ./aws/install --update
-      fnLog "awsv2 installed"
 
-    docker-engine: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      # Add Docker's official GPG key:
-      sudo apt-get -qq update; sudo apt-get -qq upgrade
-      sudo apt-get install -yq ca-certificates curl
-      sudo install -m 0755 -d /etc/apt/keyrings
-      sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-      sudo chmod a+r /etc/apt/keyrings/docker.asc
-      # Add the repository to Apt sources:
-      arch="$(dpkg --print-architecture)"
-      DEBy=$(. /etc/os-release && echo "$VERSION_CODENAME")
-      echo  "deb [arch=$arch signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian  $DEBy stable"|sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-      sudo apt-get -qq update
-      sudo apt-get install -yq --autoremove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-      sudo usermod -aG docker $USER
-      newgrp docker
-      docker run hello-world
-    golang: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      fnLog "Installing golang"
-      GOMOD_VER=$(cat go.mod 2>/dev/null | grep '^go ' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-      if [ -n "$GOMOD_VER" ]; then
-        LATEST="go${GOMOD_VER}"
-        fnLog "Using go version from go.mod: $LATEST"
-      else
-        LATEST=$(curl -sL "https://golang.org/dl/?mode=json" | jq -r '.[0].version')
-      fi
-      [ -z "$LATEST" ] || [ "$LATEST" = "null" ] && clog Log -E "could not fetch latest Go version" && exit 1
-      url="https://go.dev/dl/$LATEST.linux-amd64.tar.gz"
-      fnLog "Fetching $url"
-      dst="/tmp/golang.tar.gz"
-      curl --location --silent "$url" --output "$dst"
-      fnLog "Removing existing go/usr/local/go"
-      sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf "$dst"
-      if [ -z "$(echo $PATH|grep '/usr/local/go')" ]; then
-        fnLog "setting GOPATH, adding go & GOPATH/bin to path"
-        export GOPATH="$HOME/go"
-        echo "export GOPATH=\"$GOPATH\"" >> ~/.bashrc
-        newPath="/usr/local/go/bin:\$GOPATH/bin"
-        echo "export PATH=\$PATH:$newPath" >> ~/.bashrc
-        PATH=$PATH:$newPath
-        clog Log -W "source ~/.bashrc # to add golang to path"
-      fi
-      go version
-      fnLog "installing staticcheck"
-      go install honnef.co/go/tools/cmd/staticcheck@latest >/dev/null
-      fnLog "golang installed"
-    golang-mac: brew install go
     godoc: |
       go install golang.org/x/tools/cmd/godoc@latest
-    golangci-lint: |
-      curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh|sh -s -- -b $(go env GOPATH)/bin v1.60.1
-    glab: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      ARCH=$(uname -m);case $ARCH in x86_64)ARCH="amd64";;aarch64)ARCH="arm64";;*)ARCH="";;esac
-      [ -z "$ARCH" ]&&clog Log -E "unsupported architecture $cE$(uname -m)"&&exit 1
-      OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-      LATEST_URL="https://gitlab.com/api/v4/projects/34675721/releases"
-      RELEASE_INFO=$(curl -s "$LATEST_URL" | head -1)
-      VERSION=$(echo "$RELEASE_INFO" | grep -o '"tag_name":"[^"]*' | head -1| cut -d'"' -f4)
-      [ -z "$VERSION" ] && clog Log -E "Failed to get latest glab version from $LATEST_URL" && exit 1
-      FILENAME="glab_${VERSION#v}_${OS}_${ARCH}.tar.gz"
-      DST=/tmp/glab.tar.gz
-      DOWNLOAD_URL="https://gitlab.com/gitlab-org/cli/-/releases/${VERSION}/downloads/${FILENAME}"
-      clog Log -I  "curl glab@$VERSION installer from $DOWNLOAD_URL"
-      curl -sL $DOWNLOAD_URL -o $DST
-      [ $? -gt 0 ]&&clog Log -E "failed to$cC curl$cU $DOWNLOAD_URL"&&exit 1
-      cd /tmp
-      tar -xzf $DST
-      [ $? -gt 0 ]&&clog Log -E "failed to$cC tar -xzf$cF $DST"&&exit 1
-      sudo cp ./bin/glab /usr/local/bin/glab
-      [ $? -gt 0 ]&&clog Log -E "failed to$cC cp -xzf$cF /tmp/bin/glab"&&exit 1
-      v="$(glab --version)"
-      clog Log -S  "done $v"
-    glab-mac: "brew install glab"
-    gh: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      fnLog "installing gh"
-      type -p wget >/dev/null || (fnLog "install wget" && sudo apt update && sudo apt-get install wget -y)
-      sudo mkdir -p -m 755 /etc/apt/keyrings
-      fnLog "fetching keyring data"
-      wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
-      sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-      fnLog "determine package($(dpkg --print-architecture)) & architecture"
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-      fnLog "apt-get update"
-      sudo apt-get update -qq
-      fnLog "apt-get install"
-      sudo apt-get install gh -y -qq
-      fnLog "gh installed"
-    gh-mac: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; } brew install gh
-    git: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      sudo apt-get install -y git-all
     git-lfs: |
       [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
       curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
       sudo apt-get install git-lfs
-    grafana: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      fnLog "installing grafana"
-      fnLog "install dependencies"
-      sudo apt-get install -y -qq apt-transport-https software-properties-common wget
-      sudo mkdir -p /etc/apt/keyrings/
-      fnLog "fetch keyring data"
-      wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null
-      fnLog "fetch package info"
-      echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
-      fnLog "apt-get update"
-      sudo apt-get update -qq
-      fnLog "apt-get install"
-      sudo apt-get install -y grafana -qq
-      fnLog "grafana installed"
-    helm: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      # tbd mac brew install helm
-      curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-      sudo apt-get install apt-transport-https --yes
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-      sudo apt-get update
-      sudo apt-get install helm
-      helm version --template='Version: {{.Version}}' && exit 0
-      exit 1
     homebrew: |
       [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
       [[ "$(uname -m)" == "arm64" ]] && clog Log -W "arm is badly supported!"
       sudo apt-get install -y build-essential procps curl file git
       curl -fSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash
-    hugo: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      eval "$(clog Crayon)"
-      fnLog "installing hugo"
-      HUGO_MIN=$(grep -iA3 'hugoVersion:' config/_default/module.yaml 2>/dev/null | grep -i 'min:' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-      if [ -n "$HUGO_MIN" ]; then
-        fnLog "Using hugo version from module.yaml: $HUGO_MIN"
-        j="$(curl -L "https://api.github.com/repos/gohugoio/hugo/releases/tags/v${HUGO_MIN}")"
-      else
-        fnLog "fetching versions https://api.github.com/repos/gohugoio/hugo/releases/latest"
-        j="$(curl -L https://api.github.com/repos/gohugoio/hugo/releases/latest)"
-      fi
-      pkg=".deb"
-      arch="arm" ; [[ "$(uname -m)" == "x86_64" ]] && arch="amd64"
-      v="$(   echo $j | jq -r '.name   | ltrimstr("v")')"
-      urls="$(echo $j | jq -r '.assets | .[] | [.name, .browser_download_url] | .[1]')"
-      # get the first release with "extended" this should ignore the withdeploy options
-      url="$(echo "$urls" | grep "$v" | grep "$pkg" | grep "$arch" | grep "extended" | head -1)"
-      # echo "$urls"
-      current="$(hugo version 2>/dev/null|grep -oE '[0-9]\.[0-9]+\.[0-9]')"
-      [[ "$v" == "$current" ]] && clog Log -I "hugo $v already installed" && exit 0
-      [ -n "$current" ] && clog Log -W "upgrade hugo from$cS $current$cT to $cW $v"
-      fnLog "found $(echo "$urls"|wc -l) installers for ($v)($pkg)($arch)(extended)[0]"
-      fnLog "fetching $cF $url"
-      curl -sL "$url" > /tmp/hugo.deb
-      fnLog "running installer $cF $url"
-      sudo apt-get install -y /tmp/hugo.deb
-      fnLog "hugo installed"
-    jq: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      fnLog "installing jq"
-      sudo apt-get install -y jq
-      fnLog "jq installed"
-    ko: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      # check that slsa-verifier is installed
-      which slsa-verifier > /dev/null 2>&1 || clog install slsa-verifier
-      fnLog "installing ko"
-      # process the releases of the ko repo
-      vURL=https://api.github.com/repos/ko-build/ko/releases/latest
-      j="$(curl -sL $vURL)"
-      pkg=".tar.gz"
-      arch="arm" ; [[ "$(uname -m)" == "x86_64" ]] && arch="x86_64"
-      os="$(uname -s)"
-      v="$(   echo $j | jq -r '.name   | ltrimstr("v")')"
-      urls="$(echo $j | jq -r '.assets | .[] | [.name, .browser_download_url] | .[1]')"
-      url="$(echo "$urls" | grep "$v" | grep "$pkg" | grep "$arch" | grep -i "$os" | head -1)"
-      fnLog "fetching $url"
-      TMP="/tmp/ko.tar.gz"
-      SIG="/tmp/multiple.intoto.jsonl"
-      DST="/usr/local/bin/ko"
-      curl -sSfL "$url" > "$TMP"
-      curl -sSfL https://github.com/ko-build/ko/releases/download/v$v/multiple.intoto.jsonl > "$SIG"
-      fnLog "checking with slsa-verifier"
-      slsa-verifier verify-artifact --provenance-path "$SIG" --source-uri github.com/ko-build/ko --source-tag "v${v}" "$TMP"
-      fnLog "moving to /usr/local/bin/"
-      sudo tar -xzf "$TMP" --directory /usr/local/bin/ &&  sudo chmod +x "$DST"
-      fnLog "ko installed"
-    kubectl: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      sudo apt-get update
-      # apt-transport-https may be a dummy package; if so, you can skip that package
-      sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
-      # If the folder `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
-      # sudo mkdir -p -m 755 /etc/apt/keyrings
-      curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg # allow unprivileged APT programs to read this keyring
-      # This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
-      echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-      sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list   # helps tools such as command-not-found to work correctly
-      sudo apt-get update
-      sudo apt-get install -y kubectl
     minikube: |
       [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
       curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 \
@@ -897,44 +682,6 @@ snippets:
     protoc: |
       [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
       sudo apt-get install -y protobuf-compiler
-    prometheus: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      ARCH=$(uname -m)
-      OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-      case "$ARCH" in x86_64)ARCH="amd64";;aarch64|arm64)ARCH="arm64";;*)ARCH="";;esac
-      [ -z "$ARCH" ]&&clog Log -E "unsupported architecture ($(uname -m))"&&exit 1
-      promDurl="https://api.github.com/repos/prometheus/prometheus/releases/latest"
-      nodeDurl="https://api.github.com/repos/prometheus/node_exporter/releases/latest"
-      promUrl="$(curl -s $promDurl|grep "browser_download_url.*${OS}-${ARCH}.tar.gz"|cut -d '"' -f 4)"
-      nodeUrl="$(curl -s $nodeDurl|grep "browser_download_url.*${OS}-${ARCH}.tar.gz"|cut -d '"' -f 4)"
-      promDir="$(basename $promUrl)"
-      nodeDir="$(basename $nodeUrl)"
-      #remove file extension from prometheus dir
-      promDir="${promDir%.tar.gz}"
-      nodeDir="${nodeDir%.tar.gz}"
-      promDST=/tmp/prometheus.tar.gz
-      nodeDST=/tmp/node_exporter.tar.gz
-      clog Log -I "fetch prometheus"
-      curl -L --output $promDST "$promUrl"
-      clog Log -I "fetch node_exporter"
-      curl -L --output $nodeDST "$nodeUrl"
-      cd /tmp
-      tar xvf $promDST
-      tar xvf $nodeDST
-      cd $promDir
-      sudo cp prometheus /usr/local/bin/prometheus
-      cp prometheus.yml ~/prometheus-sample.yaml
-      cd ../$nodeDir
-      sudo cp node_exporter /usr/local/bin/node_exporter
-    slsa-verifier: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      go version 2>/dev/null
-      [ $? -gt 1 ] && clog Log -E "slsa-verifier needs golang before installation" && exit 1
-      fnLog "installing slsa-verifier with go install"
-      go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest >/dev/null
-      fnLog "checking slsa-verifier version"
-      $HOME/go/bin/slsa-verifier version
-      fnLog "slsa-verifier installed"
     snap: |
       [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
       sudo apt install -y snapd
@@ -961,11 +708,6 @@ snippets:
     yarn: |
       [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
       npm install --global yarn && echo "PATH=\"$PATH:$(yarn global bin)\"" >> ~/.bashrc
-    yq: |
-      [[ "$1" == "+logging" ]] && fnLog() { clog Log -I "$1 $2 $3"; } || fnLog() { :; }
-      arch="arm64" ; [[ "$(uname -m)" == "x86_64" ]] && arch="amd64"
-      sudo curl -Ls --output /usr/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$arch
-      sudo chmod +x /usr/bin/yq
   # ▼▼▼ deb ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
     # ------------------------------------------------------------------------------------------------------------------
     # ---  Mr MXF clog snippets - not in main core
