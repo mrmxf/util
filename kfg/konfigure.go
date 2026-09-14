@@ -58,6 +58,7 @@ func Konfigure(opt ...*KonfigureOpt) error {
 
 	// Initialize the global koanf instance
 	Raw = koanf.New(".")
+	MergedPaths = nil
 
 	// Load configuration if AutoLoad is true
 	if options.PreventAutoLoad {

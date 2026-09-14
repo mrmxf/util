@@ -12,7 +12,23 @@ import (
 
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/fs"
+	"github.com/knadh/koanf/v2"
 )
+
+// MergedPaths lists, in merge order, the configuration files that MergeKonfig
+// loaded successfully since the last Konfigure. Paths are as given to MergeKonfig.
+var MergedPaths []string
+
+// FileHasKey reports whether the YAML config file at path (on the OS filesystem,
+// relative to the working directory as MergeKonfig reads it) defines key, using
+// the same "." delimiter as Raw. Use it to find which merged file set a key.
+func FileHasKey(path, key string) bool {
+	k := koanf.New(".")
+	if err := k.Load(fs.Provider(os.DirFS("."), path), yaml.Parser()); err != nil {
+		return false
+	}
+	return k.Exists(key)
+}
 
 // MergeKonfig merges additional configuration from a filesystem into the existing global koanf instance.
 // This allows overlaying user-specific configuration on top of the base configuration loaded by Konfigure.
@@ -67,6 +83,7 @@ func MergeKonfig(opt ...*KonfigureOpt) error {
 	switch {
 	case err == nil:
 		slog.Debug("AutoMerge: konfig search", "found", true, "path", filePath)
+		MergedPaths = append(MergedPaths, filePath)
 		return nil
 	case os.IsNotExist(err):
 		slog.Debug("AutoMerge: konfig search", "found", false, "path", filePath)
