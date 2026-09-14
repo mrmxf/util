@@ -1,0 +1,82 @@
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  clog.gitlab-ci.yml - GitLab twin of the mrmxf/util GitHub workflows
+#
+#  Same shape as build-golang / deploy-s3 on GitHub: no CI/CD variables hold
+#  secrets. Each job gets clog, asks ci.policy (clog ci should) whether to act,
+#  and runs its work under `clog ci run`, which logs in to Infisical with the
+#  job's OIDC id_token. Config: clog ci --config-help.
+#
+#  Use from a project's .gitlab-ci.yml:
+#
+#    include:
+#      - remote: https://raw.githubusercontent.com/mrmxf/util/workflows-v1/gitlab/clog.gitlab-ci.yml
+#        inputs:
+#          audience: https://eu.infisical.com   # = ci.infisical.domain = identity Audiences
+#          self-build: true                     # clog repos only
+#
+#  Jobs provided: clog-build (stage build), clog-deploy (stage deploy).
+#  Hidden job .clog-prepare can be extended for custom verbs:
+#    my-job: {extends: .clog-prepare, script: ["clog ci should build || exit 0", "clog ci run -- clog my-verb"]}
+
+spec:
+  inputs:
+    audience:
+      description: OIDC audience for INFISICAL_ID_TOKEN (the Infisical domain)
+    self-build:
+      type: boolean
+      default: false
+      description: build clog from this repository (clog repos) instead of downloading a release
+    image:
+      default: golang:1.26-bookworm
+      description: job image; needs bash, curl and (for self-build) Go matching go.mod
+    clog-version:
+      default: ""
+      description: clog release tag when not self-building ('' = .clog-version)
+    clog-repo:
+      default: mrmxf/clog-sample
+      description: GitHub owner/repo holding the clog release
+    artifact-paths:
+      type: array
+      default: ["tmp/"]
+      description: build outputs handed from clog-build to clog-deploy
+---
+.clog-prepare:
+  image: $[[ inputs.image ]]
+  id_tokens:
+    INFISICAL_ID_TOKEN:
+      aud: $[[ inputs.audience ]]
+  variables:
+    GIT_DEPTH: 0              # clog BC git needs tags and history
+    GIT_STRATEGY: clone
+  before_script:
+    - |
+      if [ "$[[ inputs.self-build ]]" = "true" ]; then
+        go build -o /usr/local/bin/clog .
+      else
+        curl -fsSL "https://raw.githubusercontent.com/mrmxf/util/workflows-v1/.github/actions/setup-clog/get-clog.sh" -o /tmp/get-clog.sh
+        CLOG_DIR="$(CLOG_VERSION="$[[ inputs.clog-version ]]" CLOG_REPO="$[[ inputs.clog-repo ]]" CLOG_INSTALL_DIR=/usr/local/bin bash /tmp/get-clog.sh)"
+        export PATH="$CLOG_DIR:$PATH"
+      fi
+    - clog --version
+    - clog ci policy
+
+clog-build:
+  extends: .clog-prepare
+  stage: build
+  script:
+    - clog ci should build || exit 0
+    - clog ci run -- bash -c 'clog ci require build || exit 1; if [ -z "${MAKE:-}" ]; then clog build; else clog build MAKE "$MAKE"; fi'
+  artifacts:
+    when: always
+    expire_in: 1 day
+    paths: $[[ inputs.artifact-paths ]]
+
+clog-deploy:
+  extends: .clog-prepare
+  stage: deploy
+  needs: [clog-build]
+  script:
+    - clog ci should deploy || exit 0
+    - clog ci run -- bash -c 'clog ci require deploy || exit 1; if [ -z "${MAKE:-}" ]; then clog deploy; else clog deploy MAKE "$MAKE"; fi'

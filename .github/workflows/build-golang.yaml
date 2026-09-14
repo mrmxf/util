@@ -4,11 +4,18 @@
 #
 #  build-golang — callable workflow: multiplatform Go build via `clog build`.
 #
-#  Phase 9½ thin rewrite: the ~140-line inline event/ref bash is gone. clog is
-#  installed by the pinned, checksum-verified setup-clog action (no secret-eval,
-#  audit F1); the event is normalized by `clog ci resolve` (testable Go, A);
-#  the work is `clog build`; reporting is `clog SlackStash`. Logic lives in
-#  clog, not YAML — see on.workflow_call.inputs for params.
+#  v1 (Infisical): no secrets are passed in. clog-prepare decides from the
+#  caller's .clog.yaml (ci.policy) whether this run builds; build steps run
+#  under `clog ci run`, which fetches Infisical secrets with the job's OIDC
+#  token. Config: clog ci --config-help.
+#
+#  Caller:
+#    permissions: {contents: read, id-token: write}
+#    jobs:
+#      build:
+#        uses: mrmxf/util/.github/workflows/build-golang.yaml@workflows-v1
+#        permissions: {contents: read, id-token: write}
+#        with: {self-build: true}        # clog repos only
 
 name: build-golang
 run-name: ${{ github.workflow }}(${{ github.event_name }}) 🥷${{ github.actor }}
@@ -16,96 +23,69 @@ run-name: ${{ github.workflow }}(${{ github.event_name }}) 🥷${{ github.actor 
 on:
   workflow_call:
     inputs:
-      docker_ns:     { required: false, type: string }  # docker login acct ('' = none)
-      artifact-name: { required: false, type: string }  # artifact name ('' = none)
-      make:          { required: false, type: string }  # MAKE override for clog build
-      bcTitle:       { required: false, type: string }  # slack toast title
-      clog-ref:      { required: false, type: string }  # clog version (''=.clog-version)
-      clog-repo:     { required: false, type: string, default: mrmxf/clog-sample }
+      self-build: { required: false, type: boolean, default: false }  # build clog from this repo
+      make:       { required: false, type: string,  default: "" }     # MAKE override for clog build
+      clog-ref:   { required: false, type: string,  default: "" }     # clog release (''=.clog-version)
+      clog-repo:  { required: false, type: string,  default: mrmxf/clog-sample }
     secrets:
-      webhook_slack:       { required: false }  # slack channel webhook ('' = no notify)
-      docker_pat:          { required: false }  # docker login password
-      clog_download_token: { required: false }  # token for a private clog-repo
+      clog_download_token: { required: false }  # only for a private clog release repo
 
-# Least-privilege default token (F4): build needs only to read the repo.
 permissions:
   contents: read
+  id-token: write   # OIDC → Infisical
 
-# One in-flight run per ref; newer pushes cancel older ones (F8).
 concurrency:
   group: build-golang-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-golang:
-    # Scope (approach A): act on a *release* — a v-tag push — or a scheduled /
-    # manually-dispatched run; NOT on plain branch pushes. Pushing a commit and
-    # its tag fires two `push` events (branch + tag); keying the build off the
-    # v-tag means the tag run does the work and the branch run is skipped, so a
-    # release never builds twice. Non-'v' tags and unauthorized actors are
-    # skipped. (`>-` folds newlines to spaces before GitHub parses `${{ }}`.)
-    if: >-
-      ${{ github.event_name == 'schedule' ||
-          (github.event_name == 'workflow_dispatch' &&
-           contains(fromJSON('["mrmxf"]'), github.event.sender.login)) ||
-          (github.event_name == 'push' &&
-           startsWith(github.ref, 'refs/tags/v') &&
-           contains(fromJSON('["mrmxf"]'), github.event.sender.login)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: setup-clog
-        uses: mrmxf/util/.github/actions/setup-clog@workflows-v1
+      - name: prepare (checkout, go, clog, ci.policy)
+        uses: mrmxf/util/.github/actions/clog-prepare@workflows-v1
         with:
+          self-build: ${{ inputs.self-build }}
           clog-ref: ${{ inputs.clog-ref }}
           clog-repo: ${{ inputs.clog-repo }}
           token: ${{ secrets.clog_download_token }}
-      - name: resolve event → ref/repo/depth/verb
+
+      - name: login to Docker Hub (DOCKER_PAT from Infisical)
+        if: env.do_build == 'true' && env.ci_docker_ns != ''
+        run: clog ci run -- bash -c 'printf %s "$DOCKER_PAT" | docker login -u "$ci_docker_ns" --password-stdin'
+
+      - name: install toolchain (slsa-verifier, ko)
+        if: env.do_build == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}   # GitHub API rate limit for version lookups
         run: |
-          clog ci resolve --format env >> "$GITHUB_ENV"
-          clog ci resolve   # echo the JSON to the log for debugging
-      - name: checkout ${{ env.repo }} @ ${{ env.ref }} (depth ${{ env.depth }})
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: ${{ env.depth }}
-          lfs: true
-          ref: ${{ env.ref }}
-          repository: ${{ env.repo }}
-          submodules: recursive
-      - name: production checkout (scheduled runs)
-        if: env.is_production == 'true'
-        run: clog BC git checkout production
-      - name: login to Docker Hub
-        if: inputs.docker_ns != ''
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        with:
-          username: ${{ inputs.docker_ns }}
-          password: ${{ secrets.docker_pat }}
-      - name: install toolchain (golang, slsa-verifier, ko)
-        run: |
-          clog Install golang        --verbose
-          source ~/.bashrc
           clog Install slsa-verifier --verbose
-          clog Install ko            --verbose
-      - name: build
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          clog Install ko --verbose
+
+      - name: build (clog ci run -- clog build)
+        if: env.do_build == 'true'
         env:
           MAKE: ${{ inputs.make }}
-          DOCKER_NS: ${{ inputs.docker_ns }}
-        run: '[ -z "$MAKE" ] && clog build || clog build MAKE "$MAKE"'
-      - name: upload artifact ${{ inputs.artifact-name }}
-        if: ${{ inputs.artifact-name }}
+        run: |
+          clog ci run -- bash -c '
+            clog ci require build || exit 1
+            if [ -z "$MAKE" ]; then clog build; else clog build MAKE "$MAKE"; fi'
+
+      - name: upload artifact ${{ env.ci_artifact }}
+        if: env.do_build == 'true' && env.ci_artifact != ''
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: ${{ inputs.artifact-name }}
+          name: ${{ env.ci_artifact }}
           retention-days: 2
           path: tmp
-      - name: notify-team (slack)
-        if: always()
+
+      - name: notify-team (slack, HOOK_SLACK from Infisical)
+        if: always() && env.do_build == 'true'
         env:
-          HOOK_SLACK: ${{ secrets.webhook_slack }}
-          bcTitle: ${{ inputs.bcTitle }}
+          MD: "• build ${{ env.clog_env }} ${{ env.ref }} by ${{ env.actor }}\n• ${{ env.url }}\n• run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
         run: |
-          [ -z "$HOOK_SLACK" ] && { clog Log -W "HOOK_SLACK empty — no Slack notify"; exit 0; }
-          md="• job ${{ github.job }} from $(basename ${{ github.workflow_ref }} | cut -d'@' -f1)\n"
-          md="$md• repo ${{ env.repo }} at ${{ env.url }}\n• ref ${{ env.ref }} depth ${{ env.depth }}\n"
-          clog SlackStash "$bcTitle" --md "$md"
+          clog ci run -- bash -c '
+            [ -z "${HOOK_SLACK:-}" ] && { clog Log -W "HOOK_SLACK not set - no Slack notify"; exit 0; }
+            clog SlackStash "${ci_title:-build} ($clog_env)" --md "$MD"'
