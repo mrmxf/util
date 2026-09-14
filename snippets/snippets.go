@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"runtime"
 
+	"github.com/mrmxf/util/kfg"
 	"github.com/mrmxf/util/snips"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +29,7 @@ type Command = struct {
 // You can have multiple snippets branches in multiple files and put them
 // in the CLI hierarchy any way you like.
 func Bootstrap(parentCmd *cobra.Command, opts Command) *cobra.Command {
+	warnReservedInstall(opts.Key)
 	Snippets, err := snips.ParseSnippets(parentCmd, opts.Raw)
 	if err != nil {
 		slog.Error("error parsing snippets", "error", err)
@@ -55,6 +57,19 @@ func Bootstrap(parentCmd *cobra.Command, opts Command) *cobra.Command {
 	Command.PersistentFlags().BoolVarP(&opts.Verbose, "verbose", "V", false, "clog Snippets -v   # verbose scripts")
 	Command.PersistentFlags().BoolVarP(&opts.Plain, "plain", "P", false, "clog Snippets -p   # remove pretty colors")
 	return Command
+}
+
+// warnReservedInstall warns when a merged config file (e.g. .clog.yaml) defines
+// <key>.install. The embedded app snippets now live under <key>.getapp and
+// `clog Install` is the built-in recipe installer, so a local install group is
+// easily confused with it.
+func warnReservedInstall(key string) {
+	installKey := key + ".install"
+	for _, path := range kfg.MergedPaths {
+		if kfg.FileHasKey(path, installKey) {
+			slog.Warn(installKey+" found: rename it to "+key+".getapp (clog Install is the built-in installer)", "file", path)
+		}
+	}
 }
 
 func init() {
