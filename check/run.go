@@ -23,7 +23,7 @@ type BlockResult struct {
 
 // RunBlock runs a single standalone block (section "", index 1 of 1) and
 // returns an error when the block result is falsy — i.e. a condition failed.
-// This is the entry point used by callers such as `clog install have <tool>`.
+// This is the entry point used by callers such as `clog Install have <tool>`.
 func RunBlock(b Block) error {
 	res := RunBlockCtx(BlockContext{Section: "check", ID: 1, Count: 1}, b)
 	if !res.Truthy {

@@ -12,6 +12,31 @@ rewrote each as a thin shim over `clog` — **thin YAML, fat clog**.
 | [`dump-context.yaml`](./dump-context.yaml) | debug: dump GitHub/env/job contexts (no secrets) |
 | [`test-setup-clog.yaml`](./test-setup-clog.yaml) | smoke-test the clog bootstrap |
 
+### Legacy `-v0` workflows
+
+Verbatim clones of the old `mrmxf/clog/.github/workflows/*` so existing callers
+can leave the deprecated repo by changing only the `uses:` path — inputs and
+secrets are unchanged (`get_clog`, `bcMd`, `cf_*`):
+
+```yaml
+# before
+uses: mrmxf/clog/.github/workflows/build-hugo.yaml@main
+# after
+uses: mrmxf/util/.github/workflows/build-hugo-v0.yaml@main
+```
+
+| workflow | replaces | caveats |
+| --- | --- | --- |
+| [`build-golang-v0.yaml`](./build-golang-v0.yaml) | `mrmxf/clog` `build-golang.yaml` | `eval`s the `get_clog` secret (audit F1); runs `clog install golang/slsa-verifier/ko` snippets |
+| [`build-hugo-v0.yaml`](./build-hugo-v0.yaml) | `mrmxf/clog` `build-hugo.yaml` | as above, plus `clog install hugo`; `trivy-action@master` and a third-party Cloudflare bypass action |
+| [`deploy-s3-v0.yaml`](./deploy-s3-v0.yaml) | `mrmxf/clog` `deploy-s3.yaml` | `eval`s the `get_clog` secret |
+| [`dump-context-v0.yaml`](./dump-context-v0.yaml) | `mrmxf/clog` `dump-context.yaml` | none — no clog, no secrets |
+| [`test-get-clog-v0.yaml`](./test-get-clog-v0.yaml) | `mrmxf/clog` `test-get-clog.yaml` | `eval`s the `get_clog` secret |
+
+The `clog install <tool>` snippets only exist in clog releases before the
+built-in `clog Install`; point `GET_CLOG` at such a release, or migrate to the
+non-`-v0` workflow. The `-v0` files are frozen: fix forward in the rewrites.
+
 ## Shared shape
 
 Every build/deploy job is the same four moves; the logic lives in `clog`, not

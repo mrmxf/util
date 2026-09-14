@@ -83,10 +83,10 @@ jobs:
           password: ${{ secrets.docker_pat }}
       - name: install toolchain (golang, slsa-verifier, ko)
         run: |
-          clog install golang        "+logging"
+          clog Install golang        --verbose
           source ~/.bashrc
-          clog install slsa-verifier "+logging"
-          clog install ko            "+logging"
+          clog Install slsa-verifier --verbose
+          clog Install ko            --verbose
       - name: build
         env:
           MAKE: ${{ inputs.make }}
