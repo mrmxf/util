@@ -5,7 +5,7 @@ hugo:
     try:
       - "hugo version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  hugo is installed"'
-    else: 'clog Log -W "  hugo not found — install with: clog install hugo"'
+    else: 'clog Log -W "  hugo not found — install with: clog Install hugo"'
   version:
     strategy: hugo-module
     file: "config/_default/module.yaml"

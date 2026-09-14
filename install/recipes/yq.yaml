@@ -5,7 +5,7 @@ yq:
     try:
       - "yq --version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  yq is installed"'
-    else: 'clog Log -W "  yq not found — install with: clog install yq"'
+    else: 'clog Log -W "  yq not found — install with: clog Install yq"'
   version:
     strategy: github-latest
     repo: mikefarah/yq

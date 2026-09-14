@@ -5,7 +5,7 @@ slsa-verifier:
     try:
       - "slsa-verifier version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  slsa-verifier is installed"'
-    else: 'clog Log -W "  slsa-verifier not found — install with: clog install slsa-verifier"'
+    else: 'clog Log -W "  slsa-verifier not found — install with: clog Install slsa-verifier"'
   platforms:
     darwin/arm64:
       install:

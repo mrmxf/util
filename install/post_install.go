@@ -69,7 +69,7 @@ func runPathAppend(line, profile string) error {
 	}
 	defer f.Close()
 
-	if _, err := fmt.Fprintf(f, "\n# added by clog install\n%s\n", line); err != nil {
+	if _, err := fmt.Fprintf(f, "\n# added by clog Install\n%s\n", line); err != nil {
 		return fmt.Errorf("path-append: write to %s: %w", profile, err)
 	}
 	slog.Info("path-append: added", "profile", profile, "line", line)

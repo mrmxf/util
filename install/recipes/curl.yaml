@@ -1,37 +1,37 @@
-jq:
-  description: "jq — lightweight JSON processor"
+curl:
+  description: "curl — command line tool for transferring data with URLs"
   check:
-    name: "jq is installed"
+    name: "curl is installed"
     try:
-      - "jq --version >/dev/null 2>&1": truthy
-    then: 'clog Log -I "  jq is installed"'
-    else: 'clog Log -W "  jq not found — install with: clog Install jq"'
+      - "curl --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  curl is installed"'
+    else: 'clog Log -W "  curl not found — install with: clog Install curl"'
   platforms:
     darwin/arm64:
       install:
         strategy: brew-install
-        package: jq
+        package: curl
     darwin/amd64:
       install:
         strategy: brew-install
-        package: jq
+        package: curl
     linux-deb/arm64:
       install:
         strategy: apt-install
-        package: jq
+        package: curl
         sudo: true
     linux-deb/amd64:
       install:
         strategy: apt-install
-        package: jq
+        package: curl
         sudo: true
     linux-rpm/arm64:
       install:
         strategy: dnf-install
-        package: jq
+        package: curl
         sudo: true
     linux-rpm/amd64:
       install:
         strategy: dnf-install
-        package: jq
+        package: curl
         sudo: true

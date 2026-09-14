@@ -1,0 +1,65 @@
+infisical:
+  description: "Infisical CLI — secrets manager login for laptops (CI uses clog ci run, no CLI needed)"
+  check:
+    name: "infisical is installed"
+    try:
+      - "infisical --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  infisical is installed"'
+    else: 'clog Log -W "  infisical not found — install with: clog Install infisical"'
+  version:
+    strategy: github-latest
+    repo: Infisical/cli
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: infisical/get-cli/infisical
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: infisical/get-cli/infisical
+    linux-deb/arm64:
+      arch: arm64
+      download:
+        strategy: github-release-asset
+        repo: Infisical/cli
+        filter:
+          - "infisical_"                 # excludes the infisical-pkcs11_ package
+          - "_linux_arm64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-deb/amd64:
+      arch: amd64
+      download:
+        strategy: github-release-asset
+        repo: Infisical/cli
+        filter:
+          - "infisical_"                 # excludes the infisical-pkcs11_ package
+          - "_linux_amd64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-rpm/arm64:
+      arch: arm64
+      download:
+        strategy: github-release-asset
+        repo: Infisical/cli
+        filter:
+          - "infisical_"                 # excludes the infisical-pkcs11_ package
+          - "_linux_arm64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true
+    linux-rpm/amd64:
+      arch: amd64
+      download:
+        strategy: github-release-asset
+        repo: Infisical/cli
+        filter:
+          - "infisical_"                 # excludes the infisical-pkcs11_ package
+          - "_linux_amd64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true

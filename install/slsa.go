@@ -19,7 +19,7 @@ func VerifySLSA(spec *SLSASpec, artifactPath, version, osVal, archVal string) er
 
 	if _, err := exec.LookPath("slsa-verifier"); err != nil {
 		slog.Warn("slsa-verifier not found; skipping SLSA check",
-			"hint", "clog install slsa-verifier",
+			"hint", "clog Install slsa-verifier",
 			"artifact", artifactPath)
 		return nil
 	}

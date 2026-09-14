@@ -5,7 +5,7 @@ aws:
     try:
       - "aws --version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  aws CLI is installed"'
-    else: 'clog Log -W "  aws not found — install with: clog install aws"'
+    else: 'clog Log -W "  aws not found — install with: clog Install aws"'
   platforms:
     darwin/arm64:
       install:

@@ -1,6 +1,10 @@
 tools:
   aws:
     recipepath: "recipes/aws.yaml"
+  caddy:
+    recipepath: "recipes/caddy.yaml"
+  curl:
+    recipepath: "recipes/curl.yaml"
   docker-engine:
     recipepath: "recipes/docker-engine.yaml"
   gh:
@@ -13,16 +17,24 @@ tools:
     recipepath: "recipes/golang.yaml"
   golangci-lint:
     recipepath: "recipes/golangci-lint.yaml"
+  grafana:
+    recipepath: "recipes/grafana.yaml"
   helm:
     recipepath: "recipes/helm.yaml"
   hugo:
     recipepath: "recipes/hugo.yaml"
+  infisical:
+    recipepath: "recipes/infisical.yaml"
   jq:
     recipepath: "recipes/jq.yaml"
   ko:
     recipepath: "recipes/ko.yaml"
   kubectl:
     recipepath: "recipes/kubectl.yaml"
+  podman:
+    recipepath: "recipes/podman.yaml"
+  prometheus:
+    recipepath: "recipes/prometheus.yaml"
   slsa-verifier:
     recipepath: "recipes/slsa-verifier.yaml"
   yq:

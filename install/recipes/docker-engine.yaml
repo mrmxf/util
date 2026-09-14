@@ -5,7 +5,7 @@ docker-engine:
     try:
       - "docker --version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  docker is installed"'
-    else: 'clog Log -W "  docker not found — install with: clog install docker-engine"'
+    else: 'clog Log -W "  docker not found — install with: clog Install docker-engine"'
   platforms:
     darwin/arm64:
       unsupported: true

@@ -5,7 +5,7 @@ kubectl:
     try:
       - "kubectl version --client >/dev/null 2>&1": truthy
     then: 'clog Log -I "  kubectl is installed"'
-    else: 'clog Log -W "  kubectl not found — install with: clog install kubectl"'
+    else: 'clog Log -W "  kubectl not found — install with: clog Install kubectl"'
   version:
     strategy: github-latest
     repo: kubernetes/kubernetes

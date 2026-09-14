@@ -5,9 +5,10 @@ golang:
     try:
       - "go version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  golang is installed"'
-    else: 'clog Log -W "  golang not found — install with: clog install golang"'
+    else: 'clog Log -W "  golang not found — install with: clog Install golang"'
   version:
     strategy: go-mod
+    version-prefix: go
     fallback:
       strategy: github-tags
       repo: golang/go

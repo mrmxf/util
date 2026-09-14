@@ -1,37 +1,37 @@
-jq:
-  description: "jq — lightweight JSON processor"
+podman:
+  description: "Podman — daemonless container engine (macOS: run `podman machine init` after install)"
   check:
-    name: "jq is installed"
+    name: "podman is installed"
     try:
-      - "jq --version >/dev/null 2>&1": truthy
-    then: 'clog Log -I "  jq is installed"'
-    else: 'clog Log -W "  jq not found — install with: clog Install jq"'
+      - "podman --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  podman is installed"'
+    else: 'clog Log -W "  podman not found — install with: clog Install podman"'
   platforms:
     darwin/arm64:
       install:
         strategy: brew-install
-        package: jq
+        package: podman
     darwin/amd64:
       install:
         strategy: brew-install
-        package: jq
+        package: podman
     linux-deb/arm64:
       install:
         strategy: apt-install
-        package: jq
+        package: podman
         sudo: true
     linux-deb/amd64:
       install:
         strategy: apt-install
-        package: jq
+        package: podman
         sudo: true
     linux-rpm/arm64:
       install:
         strategy: dnf-install
-        package: jq
+        package: podman
         sudo: true
     linux-rpm/amd64:
       install:
         strategy: dnf-install
-        package: jq
+        package: podman
         sudo: true

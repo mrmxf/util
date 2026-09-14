@@ -31,14 +31,17 @@ var AllPlatforms = []Platform{
 
 // VersionSpec describes how to resolve the required version of a tool.
 type VersionSpec struct {
-	Strategy   string       `yaml:"strategy"`              // go-mod | hugo-module | github-latest | github-tags | pinned
-	File       string       `yaml:"file,omitempty"`        // go-mod, hugo-module: path to read
-	Repo       string       `yaml:"repo,omitempty"`        // github-latest, github-tags: "owner/repo"
-	TagPrefix  string       `yaml:"tag-prefix,omitempty"`  // github-latest, github-tags: strip from tag to form version
-	TagFilter  string       `yaml:"tag-filter,omitempty"`  // github-tags: regexp; only matching tags are candidates
-	TagExclude string       `yaml:"tag-exclude,omitempty"` // github-tags: regexp to skip (default: rc/beta/alpha/pre)
-	Value      string       `yaml:"value,omitempty"`       // pinned: exact version string to return
-	Fallback   *VersionSpec `yaml:"fallback,omitempty"`    // try this strategy if primary fails
+	Strategy   string `yaml:"strategy"`              // go-mod | hugo-module | github-latest | github-tags | pinned
+	File       string `yaml:"file,omitempty"`        // go-mod, hugo-module: path to read
+	Repo       string `yaml:"repo,omitempty"`        // github-latest, github-tags: "owner/repo"
+	TagPrefix  string `yaml:"tag-prefix,omitempty"`  // github-latest, github-tags: strip from tag to form version
+	TagFilter  string `yaml:"tag-filter,omitempty"`  // github-tags: regexp; only matching tags are candidates
+	TagExclude string `yaml:"tag-exclude,omitempty"` // github-tags: regexp to skip (default: rc/beta/alpha/pre)
+	Value      string `yaml:"value,omitempty"`       // pinned: exact version string to return
+	// VersionPrefix is carried by {version} but not typed by users, e.g. "go"
+	// for go1.26.4. `--use 1.26.4` is normalised to prefix + bare version.
+	VersionPrefix string       `yaml:"version-prefix,omitempty"`
+	Fallback      *VersionSpec `yaml:"fallback,omitempty"` // try this strategy if primary fails
 }
 
 // SLSASpec describes how to verify SLSA provenance for a downloaded artifact.

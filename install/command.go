@@ -18,9 +18,9 @@ var recipeFlag bool
 var dryRunFlag bool
 var platformFlag string // override platform detection (for testing)
 
-// Command is the `clog install` cobra command.
+// Command is the `clog Install` cobra command.
 var Command = &cobra.Command{
-	Use:           "install",
+	Use:           "Install",
 	Short:         "install and verify development tools",
 	Long:          longHelp,
 	SilenceErrors: true,
@@ -52,38 +52,22 @@ func init() {
 	Command.Flags().BoolVar(&recipeFlag, "recipe", false, "print the recipe YAML and exit; do not install")
 	Command.Flags().BoolVar(&dryRunFlag, "dry-run", false, "resolve version and URL without downloading or installing")
 	Command.Flags().StringVar(&platformFlag, "platform", "", "override platform detection (for testing)")
+	Command.Flags().StringVar(&useFlag, "use", "", "install this version instead of the recipe's: a version number, latest or lts")
+	Command.Flags().StringVar(&atFlag, "at", "", "alias for --use")
+	Command.PersistentFlags().BoolVar(&Verbose, "verbose", false, "log the resolved configuration and its source")
 	Command.AddCommand(haveCmd, listCmd)
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
 	toolName := args[0]
 
-	// kfg override: if the user has install.<tool> in their clog.yaml, use it
-	// as the complete recipe (full-replace semantics, same as recipepath).
-	sourcePath, entry, err := kfgOverride(toolName)
+	sourcePath, entry, err := loadEntry(toolName)
 	if err != nil {
-		// Not an override error — fall through to manifest.
-		sourcePath = ""
+		slog.Error(err.Error())
+		return err
 	}
-
-	if sourcePath == "" {
-		// No kfg override: load from embedded manifest.
-		m, merr := LoadManifest()
-		if merr != nil {
-			slog.Error(merr.Error())
-			return merr
-		}
-		indexEntry := m.Tools[toolName]
-		sourcePath, entry, err = LoadTool(m, toolName, nil)
-		if err != nil {
-			slog.Error(err.Error())
-			return err
-		}
-		if recipeFlag {
-			return printRecipe(toolName, sourcePath, indexEntry.RecipePath, entry)
-		}
-	} else if recipeFlag {
-		return printRecipe(toolName, sourcePath, "", entry)
+	if recipeFlag {
+		return printRecipe(toolName, sourcePath, entry)
 	}
 
 	platform, err := resolvePlatform()
@@ -92,7 +76,12 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := Run(entry, toolName, platform, dryRunFlag); err != nil {
+	dryRun, dryRunSource := isDryRun()
+	if dryRun {
+		vlog("dry-run enabled", "source", dryRunSource)
+	}
+
+	if err := Run(entry, toolName, platform, dryRun); err != nil {
 		slog.Error(err.Error())
 		return err
 	}
@@ -102,19 +91,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 func runHave(cmd *cobra.Command, args []string) error {
 	toolName := args[0]
 
-	_, entry, err := kfgOverride(toolName)
+	_, entry, err := loadEntry(toolName)
 	if err != nil {
-		// No kfg override — fall through to manifest.
-		m, merr := LoadManifest()
-		if merr != nil {
-			slog.Error(merr.Error())
-			return merr
-		}
-		_, entry, err = LoadTool(m, toolName, nil)
-		if err != nil {
-			slog.Error(err.Error())
-			return err
-		}
+		slog.Error(err.Error())
+		return err
 	}
 
 	if err := RunCheck(toolName, entry.Check); err != nil {
@@ -124,31 +104,63 @@ func runHave(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// loadEntry finds the recipe for toolName. A kfg override (install.<tool> in
+// the user's clog.yaml) wins; otherwise the embedded manifest is used. The
+// returned sourcePath says where the recipe came from.
+func loadEntry(toolName string) (sourcePath string, entry ToolEntry, err error) {
+	key := "install." + toolName
+	found, sourcePath, entry, err := kfgOverride(toolName)
+	if err != nil {
+		return "", ToolEntry{}, err
+	}
+	if found {
+		vlog("view the full recipe with: clog Install " + toolName + " --recipe")
+		vlog("recipe source", "tool", toolName, "source", sourcePath, "kfg-key", key)
+		return sourcePath, entry, nil
+	}
+	vlog("no kfg override, using embedded manifest", "tool", toolName, "kfg-key", key)
+
+	m, err := LoadManifest()
+	if err != nil {
+		return "", ToolEntry{}, err
+	}
+	sourcePath, entry, err = LoadTool(m, toolName, nil)
+	if err != nil {
+		return "", ToolEntry{}, err
+	}
+	vlog("view the full recipe with: clog Install " + toolName + " --recipe")
+	vlog("recipe source", "tool", toolName, "source", sourcePath, "index", "embedfs:index.yaml")
+	return sourcePath, entry, nil
+}
+
 // kfgOverride checks whether kfg config contains install.<tool> and, if so,
-// parses it as a ToolEntry (full-replace semantics). Returns a non-nil error
-// when no override exists (caller should fall back to manifest).
-func kfgOverride(toolName string) (sourcePath string, entry ToolEntry, err error) {
+// parses it as a ToolEntry (full-replace semantics). found is false when no
+// override exists; err is non-nil only when an override exists but is invalid.
+func kfgOverride(toolName string) (found bool, sourcePath string, entry ToolEntry, err error) {
+	if kfg.Raw == nil {
+		return false, "", ToolEntry{}, nil
+	}
 	raw := kfg.Raw.Get("install." + toolName)
 	if raw == nil {
-		return "", ToolEntry{}, fmt.Errorf("no kfg override for %q", toolName)
+		return false, "", ToolEntry{}, nil
 	}
 	// Round-trip through YAML to convert the kfg interface{} tree to ToolEntry.
 	data, err := yaml.Marshal(raw)
 	if err != nil {
-		return "", ToolEntry{}, fmt.Errorf("kfg override marshal for %q: %w", toolName, err)
+		return true, "", ToolEntry{}, fmt.Errorf("kfg override marshal for %q: %w", toolName, err)
 	}
 	if err := yaml.Unmarshal(data, &entry); err != nil {
-		return "", ToolEntry{}, fmt.Errorf("kfg override parse for %q: %w", toolName, err)
+		return true, "", ToolEntry{}, fmt.Errorf("kfg override parse for %q: %w", toolName, err)
 	}
 	// Resolve recipepath if the override itself points to a file.
 	if entry.RecipePath != "" {
 		sp, resolved, resolveErr := ResolveRecipe(toolName, entry, EmbedFS)
 		if resolveErr != nil {
-			return "", ToolEntry{}, resolveErr
+			return true, "", ToolEntry{}, resolveErr
 		}
-		return "kfg→" + sp, resolved, nil
+		return true, "kfg→" + sp, resolved, nil
 	}
-	return "kfg:install." + toolName, entry, nil
+	return true, "kfg:install." + toolName, entry, nil
 }
 
 func runList(cmd *cobra.Command, args []string) error {
@@ -180,12 +192,8 @@ func runList(cmd *cobra.Command, args []string) error {
 }
 
 // printRecipe prints the resolved recipe YAML with a source comment header.
-func printRecipe(toolName, sourcePath, recipePath string, entry ToolEntry) error {
-	if recipePath != "" {
-		fmt.Fprintf(os.Stdout, "# source: %s\n", sourcePath)
-	} else {
-		fmt.Fprintf(os.Stdout, "# source: inline\n")
-	}
+func printRecipe(toolName, sourcePath string, entry ToolEntry) error {
+	fmt.Fprintf(os.Stdout, "# source: %s\n", sourcePath)
 	out, err := yaml.Marshal(map[string]ToolEntry{toolName: entry})
 	if err != nil {
 		return fmt.Errorf("recipe marshal: %w", err)
@@ -197,7 +205,12 @@ func printRecipe(toolName, sourcePath, recipePath string, entry ToolEntry) error
 // resolvePlatform returns the effective platform (flag override or auto-detect).
 func resolvePlatform() (Platform, error) {
 	if platformFlag != "" {
+		vlog("platform", "platform", platformFlag, "source", "--platform flag")
 		return Platform(platformFlag), nil
 	}
-	return DetectPlatform()
+	p, err := DetectPlatform()
+	if err == nil {
+		vlog("platform", "platform", p, "source", "auto-detected (GOOS/GOARCH + distro family)")
+	}
+	return p, err
 }

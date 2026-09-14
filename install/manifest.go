@@ -33,7 +33,7 @@ func LoadManifest() (*Manifest, error) {
 func LoadTool(m *Manifest, name string, userFS fs.FS) (sourcePath string, entry ToolEntry, err error) {
 	indexEntry, ok := m.Tools[name]
 	if !ok {
-		return "", ToolEntry{}, fmt.Errorf("tool %q not found in manifest (try `clog install list`)", name)
+		return "", ToolEntry{}, fmt.Errorf("tool %q not found in manifest (try `clog Install list`)", name)
 	}
 
 	// Try the util/install embedded FS first

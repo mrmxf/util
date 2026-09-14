@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,6 +33,15 @@ func ResolveVersion(spec *VersionSpec) (string, error) {
 }
 
 func resolveOnce(spec *VersionSpec) (string, error) {
+	if Verbose {
+		attrs := []any{"strategy", spec.Strategy}
+		for _, kv := range [][2]string{{"file", spec.File}, {"repo", spec.Repo}, {"tag-filter", spec.TagFilter}, {"value", spec.Value}} {
+			if kv[1] != "" {
+				attrs = append(attrs, kv[0], kv[1])
+			}
+		}
+		vlog("version lookup", attrs...)
+	}
 	switch spec.Strategy {
 	case "go-mod":
 		return resolveGoMod(spec)
@@ -46,6 +56,19 @@ func resolveOnce(spec *VersionSpec) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown version strategy %q", spec.Strategy)
 	}
+}
+
+// logVersionMatch reports, at INFO, the version found and where it came from.
+func logVersionMatch(version, source string, attrs ...any) {
+	slog.Info("version match", append([]any{"version", version, "source", source}, attrs...)...)
+}
+
+// absPath returns file as an absolute path for logging, or file unchanged.
+func absPath(file string) string {
+	if abs, err := filepath.Abs(file); err == nil {
+		return abs
+	}
+	return file
 }
 
 // resolveGoMod reads the Go version from go.mod (e.g. "go 1.22.3" → "go1.22.3").
@@ -69,12 +92,16 @@ func resolveGoMod(spec *VersionSpec) (string, error) {
 			field := strings.TrimSpace(strings.TrimPrefix(line, "go "))
 			// Prefer X.Y.Z; accept X.Y and pad with .0
 			if goVerRE.MatchString(field) {
-				return "go" + goVerRE.FindString(field), nil
+				v := "go" + goVerRE.FindString(field)
+				logVersionMatch(v, "go.mod go directive", "path", absPath(file), "line", line)
+				return v, nil
 			}
 			// X.Y only — pad to X.Y.0
 			parts := strings.Split(field, ".")
 			if len(parts) == 2 {
-				return "go" + field + ".0", nil
+				v := "go" + field + ".0"
+				logVersionMatch(v, "go.mod go directive (padded to X.Y.0)", "path", absPath(file), "line", line)
+				return v, nil
 			}
 		}
 	}
@@ -105,7 +132,9 @@ func resolveHugoModule(spec *VersionSpec) (string, error) {
 	if m.HugoVersion.Min == "" {
 		return "", fmt.Errorf("hugo-module: hugoVersion.min not found in %q", file)
 	}
-	return strings.TrimPrefix(m.HugoVersion.Min, "v"), nil
+	v := strings.TrimPrefix(m.HugoVersion.Min, "v")
+	logVersionMatch(v, "hugo module config hugoVersion.min", "path", absPath(file), "min", m.HugoVersion.Min)
+	return v, nil
 }
 
 // resolveGitHubLatest fetches the latest release tag from the GitHub releases API.
@@ -116,8 +145,8 @@ func resolveGitHubLatest(spec *VersionSpec) (string, error) {
 	if spec.Repo == "" {
 		return "", fmt.Errorf("github-latest: repo field is required")
 	}
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", spec.Repo)
-	resp, err := http.Get(url) //nolint:gosec // URL is built from trusted config
+	url := fmt.Sprintf("%s/repos/%s/releases/latest", githubAPI, spec.Repo)
+	resp, err := githubGet(url)
 	if err != nil {
 		return "", fmt.Errorf("github-latest: GET %s: %w", url, err)
 	}
@@ -139,6 +168,7 @@ func resolveGitHubLatest(spec *VersionSpec) (string, error) {
 	if spec.TagPrefix != "" {
 		ver = strings.TrimPrefix(ver, spec.TagPrefix)
 	}
+	logVersionMatch(ver, "GitHub latest release", "repo", spec.Repo, "tag", release.TagName)
 	return ver, nil
 }
 
@@ -148,6 +178,23 @@ var defaultTagExclude = regexp.MustCompile(`(?i)(rc|beta|alpha|pre)\d*$`)
 // tagVerRE extracts a comparable version tuple from a tag name regardless of
 // prefix (handles "v1.2.3", "go1.2.3", "release-1.2.3", etc.).
 var tagVerRE = regexp.MustCompile(`(\d+)\.(\d+)(?:\.(\d+))?`)
+
+// versionTag is a tag name with its parsed major.minor.patch.
+type versionTag struct {
+	name                string
+	major, minor, patch int
+}
+
+// newer reports whether t is a higher version than o.
+func (t versionTag) newer(o versionTag) bool {
+	if t.major != o.major {
+		return t.major > o.major
+	}
+	if t.minor != o.minor {
+		return t.minor > o.minor
+	}
+	return t.patch > o.patch
+}
 
 // resolveGitHubTags paginates the GitHub tags API (up to 5 pages / 500 tags),
 // filters candidates, then semver-sorts to return the highest stable version.
@@ -159,8 +206,30 @@ var tagVerRE = regexp.MustCompile(`(\d+)\.(\d+)(?:\.(\d+))?`)
 //   - TagExclude: regexp; matching tags are skipped (empty = default pre-release filter)
 //   - TagPrefix:  strip from the winning tag to form the version (empty = return full tag)
 func resolveGitHubTags(spec *VersionSpec) (string, error) {
+	tags, err := fetchStableTags(spec)
+	if err != nil {
+		return "", err
+	}
+	var best *versionTag
+	for i := range tags {
+		if best == nil || tags[i].newer(*best) {
+			best = &tags[i]
+		}
+	}
+	if best == nil {
+		return "", fmt.Errorf("github-tags: no stable tag found in %s (filter=%q, exclude=%q)",
+			spec.Repo, spec.TagFilter, spec.TagExclude)
+	}
+	ver := strings.TrimPrefix(best.name, spec.TagPrefix)
+	logVersionMatch(ver, "GitHub tags (highest stable)", "repo", spec.Repo, "tag", best.name, "tag-filter", spec.TagFilter)
+	return ver, nil
+}
+
+// fetchStableTags returns every tag in spec.Repo that passes the tag filter and
+// pre-release exclusion and has a parseable version number.
+func fetchStableTags(spec *VersionSpec) ([]versionTag, error) {
 	if spec.Repo == "" {
-		return "", fmt.Errorf("github-tags: repo field is required")
+		return nil, fmt.Errorf("github-tags: repo field is required")
 	}
 
 	var tagFilter *regexp.Regexp
@@ -168,7 +237,7 @@ func resolveGitHubTags(spec *VersionSpec) (string, error) {
 		var err error
 		tagFilter, err = regexp.Compile(spec.TagFilter)
 		if err != nil {
-			return "", fmt.Errorf("github-tags: invalid tag-filter %q: %w", spec.TagFilter, err)
+			return nil, fmt.Errorf("github-tags: invalid tag-filter %q: %w", spec.TagFilter, err)
 		}
 	}
 	tagExclude := defaultTagExclude
@@ -176,22 +245,17 @@ func resolveGitHubTags(spec *VersionSpec) (string, error) {
 		var err error
 		tagExclude, err = regexp.Compile(spec.TagExclude)
 		if err != nil {
-			return "", fmt.Errorf("github-tags: invalid tag-exclude %q: %w", spec.TagExclude, err)
+			return nil, fmt.Errorf("github-tags: invalid tag-exclude %q: %w", spec.TagExclude, err)
 		}
 	}
 
-	type vtag struct {
-		name                string
-		major, minor, patch int
-	}
-	var best *vtag
-
+	var out []versionTag
 	const maxPages = 5
 	for page := 1; page <= maxPages; page++ {
-		url := fmt.Sprintf("https://api.github.com/repos/%s/tags?per_page=100&page=%d", spec.Repo, page)
-		resp, err := http.Get(url) //nolint:gosec // URL is built from trusted config
+		url := fmt.Sprintf("%s/repos/%s/tags?per_page=100&page=%d", githubAPI, spec.Repo, page)
+		resp, err := githubGet(url)
 		if err != nil {
-			return "", fmt.Errorf("github-tags: GET %s: %w", url, err)
+			return nil, fmt.Errorf("github-tags: GET %s: %w", url, err)
 		}
 		var tags []struct {
 			Name string `json:"name"`
@@ -199,35 +263,21 @@ func resolveGitHubTags(spec *VersionSpec) (string, error) {
 		decodeErr := json.NewDecoder(resp.Body).Decode(&tags)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			return "", fmt.Errorf("github-tags: %s returned HTTP %d", url, resp.StatusCode)
+			return nil, fmt.Errorf("github-tags: %s returned HTTP %d", url, resp.StatusCode)
 		}
 		if decodeErr != nil {
-			return "", fmt.Errorf("github-tags: decode %s: %w", url, decodeErr)
+			return nil, fmt.Errorf("github-tags: decode %s: %w", url, decodeErr)
 		}
 
 		for _, tag := range tags {
-			name := tag.Name
-			if tagFilter != nil && !tagFilter.MatchString(name) {
+			if tagFilter != nil && !tagFilter.MatchString(tag.Name) {
 				continue
 			}
-			if tagExclude.MatchString(name) {
+			if tagExclude.MatchString(tag.Name) {
 				continue
 			}
-			m := tagVerRE.FindStringSubmatch(name)
-			if m == nil {
-				continue // no parseable version numbers
-			}
-			maj, _ := strconv.Atoi(m[1])
-			min, _ := strconv.Atoi(m[2])
-			pat := 0
-			if m[3] != "" {
-				pat, _ = strconv.Atoi(m[3])
-			}
-			if best == nil ||
-				maj > best.major ||
-				(maj == best.major && min > best.minor) ||
-				(maj == best.major && min == best.minor && pat > best.patch) {
-				best = &vtag{name: name, major: maj, minor: min, patch: pat}
+			if t, ok := parseVersionTag(tag.Name); ok {
+				out = append(out, t)
 			}
 		}
 
@@ -235,16 +285,22 @@ func resolveGitHubTags(spec *VersionSpec) (string, error) {
 			break // last page
 		}
 	}
+	return out, nil
+}
 
-	if best == nil {
-		return "", fmt.Errorf("github-tags: no stable tag found in %s (filter=%q, exclude=%q)",
-			spec.Repo, spec.TagFilter, spec.TagExclude)
+// parseVersionTag extracts major.minor[.patch] from a tag name.
+func parseVersionTag(name string) (versionTag, bool) {
+	m := tagVerRE.FindStringSubmatch(name)
+	if m == nil {
+		return versionTag{}, false
 	}
-	ver := best.name
-	if spec.TagPrefix != "" {
-		ver = strings.TrimPrefix(best.name, spec.TagPrefix)
+	t := versionTag{name: name}
+	t.major, _ = strconv.Atoi(m[1])
+	t.minor, _ = strconv.Atoi(m[2])
+	if m[3] != "" {
+		t.patch, _ = strconv.Atoi(m[3])
 	}
-	return ver, nil
+	return t, true
 }
 
 // resolvePinned returns the fixed version from spec.Value.
@@ -252,5 +308,6 @@ func resolvePinned(spec *VersionSpec) (string, error) {
 	if spec.Value == "" {
 		return "", fmt.Errorf("pinned: value field is required")
 	}
+	logVersionMatch(spec.Value, "pinned in recipe")
 	return spec.Value, nil
 }

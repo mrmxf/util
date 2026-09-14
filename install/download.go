@@ -34,41 +34,69 @@ func downloadURLTemplate(dl *DownloadSpec, version, osVal, archVal string) (stri
 }
 
 func downloadGitHubReleaseAsset(dl *DownloadSpec, version string) (string, func(), error) {
-	if dl.Repo == "" {
-		return "", noop, fmt.Errorf("github-release-asset: repo field is required")
-	}
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", dl.Repo)
-	resp, err := http.Get(apiURL) //nolint:gosec
+	name, url, err := resolveGitHubReleaseAsset(dl, version)
 	if err != nil {
-		return "", noop, fmt.Errorf("github-release-asset: GET %s: %w", apiURL, err)
+		return "", noop, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", noop, fmt.Errorf("github-release-asset: %s returned HTTP %d", apiURL, resp.StatusCode)
+	slog.Info("matched release asset", "name", name)
+	return downloadToTemp(url, extFromURL(name))
+}
+
+// resolveGitHubReleaseAsset finds the release asset matching dl.Filter and
+// returns its name and download URL without fetching it. When version is known
+// the release tagged v{version} (or {version}) is used, so a version pinned by
+// go.mod / module.yaml is honoured; otherwise the latest release is used.
+func resolveGitHubReleaseAsset(dl *DownloadSpec, version string) (name, url string, err error) {
+	if dl.Repo == "" {
+		return "", "", fmt.Errorf("github-release-asset: repo field is required")
+	}
+	base := fmt.Sprintf("%s/repos/%s/releases/", githubAPI, dl.Repo)
+	candidates := []string{base + "latest"}
+	if version != unknownVersion {
+		candidates = []string{base + "tags/v" + version, base + "tags/" + version}
 	}
 
-	var release struct {
-		Assets []struct {
-			Name               string `json:"name"`
-			BrowserDownloadURL string `json:"browser_download_url"`
-		} `json:"assets"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return "", noop, fmt.Errorf("github-release-asset: decode %s: %w", apiURL, err)
-	}
-
-	for _, asset := range release.Assets {
-		if matchesAllFilters(asset.Name, dl.Filter, version) {
-			slog.Info("matched release asset", "name", asset.Name)
-			return downloadToTemp(asset.BrowserDownloadURL, extFromURL(asset.Name))
+	for _, apiURL := range candidates {
+		vlog("  looking up release", "api", apiURL)
+		resp, err := githubGet(apiURL)
+		if err != nil {
+			return "", "", fmt.Errorf("github-release-asset: GET %s: %w", apiURL, err)
 		}
-	}
+		if resp.StatusCode == http.StatusNotFound {
+			resp.Body.Close()
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return "", "", fmt.Errorf("github-release-asset: %s returned HTTP %d", apiURL, resp.StatusCode)
+		}
 
-	names := make([]string, len(release.Assets))
-	for i, a := range release.Assets {
-		names[i] = a.Name
+		var release struct {
+			TagName string `json:"tag_name"`
+			Assets  []struct {
+				Name               string `json:"name"`
+				BrowserDownloadURL string `json:"browser_download_url"`
+			} `json:"assets"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&release)
+		resp.Body.Close()
+		if err != nil {
+			return "", "", fmt.Errorf("github-release-asset: decode %s: %w", apiURL, err)
+		}
+
+		for _, asset := range release.Assets {
+			if matchesAllFilters(asset.Name, dl.Filter, version) {
+				vlog("  release asset matched", "tag", release.TagName, "filter", dl.Filter)
+				return asset.Name, asset.BrowserDownloadURL, nil
+			}
+		}
+		names := make([]string, len(release.Assets))
+		for i, a := range release.Assets {
+			names[i] = a.Name
+		}
+		return "", "", fmt.Errorf("github-release-asset: no asset in %s@%s matched filters %v\navailable: %v", dl.Repo, release.TagName, dl.Filter, names)
 	}
-	return "", noop, fmt.Errorf("github-release-asset: no asset in %s matched filters %v\navailable: %v", dl.Repo, dl.Filter, names)
+	return "", "", fmt.Errorf("github-release-asset: no release in %s for version %q", dl.Repo, version)
 }
 
 // matchesAllFilters returns true when assetName contains every filter string

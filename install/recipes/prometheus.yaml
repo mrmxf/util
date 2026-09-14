@@ -1,0 +1,65 @@
+prometheus:
+  description: "Prometheus — metrics server and time series database (linux: prometheus binary only)"
+  check:
+    name: "prometheus is installed"
+    try:
+      - "prometheus --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  prometheus is installed"'
+    else: 'clog Log -W "  prometheus not found — install with: clog Install prometheus"'
+  version:
+    strategy: github-latest
+    repo: prometheus/prometheus
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: prometheus
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: prometheus
+    linux-deb/arm64:
+      os: linux
+      arch: arm64
+      download:
+        strategy: url-template
+        url: "https://github.com/prometheus/prometheus/releases/download/v{version}/prometheus-{version}.{os}-{arch}.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "prometheus-{version}.{os}-{arch}/prometheus"
+        dest: /usr/local/bin
+        sudo: true
+    linux-deb/amd64:
+      os: linux
+      arch: amd64
+      download:
+        strategy: url-template
+        url: "https://github.com/prometheus/prometheus/releases/download/v{version}/prometheus-{version}.{os}-{arch}.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "prometheus-{version}.{os}-{arch}/prometheus"
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/arm64:
+      os: linux
+      arch: arm64
+      download:
+        strategy: url-template
+        url: "https://github.com/prometheus/prometheus/releases/download/v{version}/prometheus-{version}.{os}-{arch}.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "prometheus-{version}.{os}-{arch}/prometheus"
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/amd64:
+      os: linux
+      arch: amd64
+      download:
+        strategy: url-template
+        url: "https://github.com/prometheus/prometheus/releases/download/v{version}/prometheus-{version}.{os}-{arch}.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: "prometheus-{version}.{os}-{arch}/prometheus"
+        dest: /usr/local/bin
+        sudo: true

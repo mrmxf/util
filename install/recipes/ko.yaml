@@ -5,7 +5,7 @@ ko:
     try:
       - "ko version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  ko is installed"'
-    else: 'clog Log -W "  ko not found — install with: clog install ko"'
+    else: 'clog Log -W "  ko not found — install with: clog Install ko"'
   version:
     strategy: github-latest
     repo: ko-build/ko

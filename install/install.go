@@ -36,26 +36,46 @@ func Run(entry ToolEntry, toolName string, platform Platform, dryRun bool) error
 	}
 
 	// Resolve effective specs (platform overrides take precedence).
-	verSpec := entry.Version
+	verSpec, verSrc := entry.Version, "version (top-level)"
 	if pe.Version != nil {
-		verSpec = pe.Version
+		verSpec, verSrc = pe.Version, specPath(platform, "version")
 	}
-	dlSpec := entry.Download
+	dlSpec, dlSrc := entry.Download, "download (top-level)"
 	if pe.Download != nil {
-		dlSpec = pe.Download
+		dlSpec, dlSrc = pe.Download, specPath(platform, "download")
 	}
-	instSpec := entry.Install
+	instSpec, instSrc := entry.Install, "install (top-level)"
 	if pe.Install != nil {
-		instSpec = pe.Install
+		instSpec, instSrc = pe.Install, specPath(platform, "install")
 	}
-	postSteps := entry.PostInstall
+	postSteps, postSrc := entry.PostInstall, "post-install (top-level)"
 	if len(pe.PostInstall) > 0 {
-		postSteps = pe.PostInstall
+		postSteps, postSrc = pe.PostInstall, specPath(platform, "post-install")
 	}
 
-	// Resolve version.
-	version := "[unknown]"
-	if verSpec != nil {
+	osVal := pe.OS
+	archVal := pe.Arch
+
+	if Verbose {
+		vlog("effective config", "tool", toolName, "platform", platform, "os-token", osVal, "arch-token", archVal)
+		logSpec("version", verSrc, verSpec, verSpec == nil)
+		logSpec("download", dlSrc, dlSpec, dlSpec == nil)
+		logSpec("install", instSrc, instSpec, instSpec == nil)
+		logSpec("post-install", postSrc, postSteps, len(postSteps) == 0)
+	}
+
+	// Resolve version: --use wins over the recipe's version spec.
+	version := unknownVersion
+	req, err := requestedVersion()
+	if err != nil {
+		return err
+	}
+	if req != "" {
+		version, instSpec, err = applyUse(req, verSpec, instSpec)
+		if err != nil {
+			return err
+		}
+	} else if verSpec != nil {
 		v, err := ResolveVersion(verSpec)
 		if err != nil {
 			slog.Warn("version resolution failed", "tool", toolName, "err", err)
@@ -63,9 +83,10 @@ func Run(entry ToolEntry, toolName string, platform Platform, dryRun bool) error
 			version = v
 		}
 	}
-
-	osVal := pe.OS
-	archVal := pe.Arch
+	if req == "" && verSpec == nil && instSpec != nil && strings.Contains(instSpec.Import, "@") {
+		v := instSpec.Import[strings.LastIndex(instSpec.Import, "@")+1:]
+		logVersionMatch(v, "go-install import path", "import", instSpec.Import)
+	}
 
 	if dryRun {
 		return runDryRun(toolName, platform, version, osVal, archVal, dlSpec, instSpec, postSteps)
@@ -83,11 +104,49 @@ func Run(entry ToolEntry, toolName string, platform Platform, dryRun bool) error
 	return nil
 }
 
+// specPath names a platform-level recipe key, e.g. platforms.linux-deb/amd64.install
+func specPath(p Platform, key string) string {
+	return "platforms." + string(p) + "." + key
+}
+
+// logSpec logs one section of the effective config and the recipe key it came from.
+func logSpec(name, src string, spec any, empty bool) {
+	if empty {
+		vlog("  "+name, "source", "(none)")
+		return
+	}
+	vlogYAML("  "+name, spec, "source", src)
+}
+
+// runDryRun resolves everything up to the version + URL stage, checks the URL
+// exists, and stops before anything is downloaded or installed.
 func runDryRun(toolName string, platform Platform, version, osVal, archVal string, dl *DownloadSpec, inst *InstallSpec, post []PostStep) error {
+	if version == unknownVersion && inst != nil && strings.Contains(inst.Import, "@") {
+		version = inst.Import[strings.LastIndex(inst.Import, "@")+1:] + " (go-install)"
+	}
 	slog.Info("dry-run plan", "tool", toolName, "platform", platform, "version", version)
 	if dl != nil {
-		url := substituteTokens(dl.URL, version, osVal, archVal)
-		slog.Info("  download", "strategy", dl.Strategy, "url", url)
+		switch dl.Strategy {
+		case "github-release-asset":
+			name, url, err := resolveGitHubReleaseAsset(dl, version)
+			if err != nil {
+				return err
+			}
+			slog.Info("  download", "strategy", dl.Strategy, "asset", name, "url", url)
+			checkURL(url)
+		case "curl-script":
+			slog.Info("  download", "strategy", dl.Strategy, "url", dl.Script)
+			checkURL(dl.Script)
+		default:
+			url := substituteTokens(dl.URL, version, osVal, archVal)
+			slog.Info("  download", "strategy", dl.Strategy, "url", url)
+			checkURL(url)
+		}
+		if dl.SLSA != nil {
+			url := substituteTokens(dl.SLSA.URLTemplate, version, osVal, archVal)
+			slog.Info("  slsa provenance", "url", url, "source-uri", dl.SLSA.SourceURI)
+			checkURL(url)
+		}
 	}
 	if inst != nil {
 		detail := inst.Package
@@ -97,11 +156,12 @@ func runDryRun(toolName string, platform Platform, version, osVal, archVal strin
 		if detail == "" {
 			detail = substituteTokens(inst.Dest, version, osVal, archVal)
 		}
-		slog.Info("  install", "strategy", inst.Strategy, "detail", detail)
+		slog.Info("  install", "strategy", inst.Strategy, "detail", detail, "sudo", inst.Sudo)
 	}
 	for i, ps := range post {
 		slog.Info(fmt.Sprintf("  post-install[%d]", i+1), "strategy", ps.Strategy, "line", ps.Line)
 	}
+	slog.Info("dry-run: stopping before download")
 	return nil
 }
 

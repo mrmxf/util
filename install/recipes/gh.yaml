@@ -5,7 +5,7 @@ gh:
     try:
       - "gh version >/dev/null 2>&1": truthy
     then: 'clog Log -I "  gh (GitHub CLI) is installed"'
-    else: 'clog Log -W "  gh not found — install with: clog install gh"'
+    else: 'clog Log -W "  gh not found — install with: clog Install gh"'
   version:
     strategy: github-latest
     repo: cli/cli

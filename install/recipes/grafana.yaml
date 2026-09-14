@@ -1,56 +1,64 @@
-glab:
-  description: "GitLab CLI"
+grafana:
+  description: "Grafana OSS — observability dashboards (deb / rpm package with systemd unit)"
   check:
-    name: "glab (GitLab CLI) is installed"
+    name: "grafana is installed"
     try:
-      - "glab version >/dev/null 2>&1": truthy
-    then: 'clog Log -I "  glab (GitLab CLI) is installed"'
-    else: 'clog Log -W "  glab not found — install with: clog Install glab"'
+      - "command -v grafana >/dev/null 2>&1 || [ -x /usr/sbin/grafana ]": truthy
+    then: 'clog Log -I "  grafana is installed"'
+    else: 'clog Log -W "  grafana not found — install with: clog Install grafana"'
   version:
     strategy: github-latest
-    repo: gitlab-org/cli
+    repo: grafana/grafana
     tag-prefix: "v"
   platforms:
     darwin/arm64:
       install:
         strategy: brew-install
-        package: glab
+        package: grafana
     darwin/amd64:
       install:
         strategy: brew-install
-        package: glab
+        package: grafana
     linux-deb/arm64:
+      arch: arm64
       download:
         strategy: github-release-asset
-        repo: gitlab-org/cli
+        repo: grafana/grafana
         filter:
+          - "grafana_"
           - "_linux_arm64.deb"
       install:
         strategy: install-deb
         sudo: true
     linux-deb/amd64:
+      arch: amd64
       download:
         strategy: github-release-asset
-        repo: gitlab-org/cli
+        repo: grafana/grafana
         filter:
+          - "grafana_"
           - "_linux_amd64.deb"
       install:
         strategy: install-deb
         sudo: true
     linux-rpm/arm64:
+      arch: arm64
       download:
         strategy: github-release-asset
-        repo: gitlab-org/cli
+        repo: grafana/grafana
         filter:
+          - "grafana_"
           - "_linux_arm64.rpm"
       install:
         strategy: install-rpm
         sudo: true
     linux-rpm/amd64:
+      arch: amd64
       download:
         strategy: github-release-asset
-        repo: gitlab-org/cli
+        repo: grafana/grafana
         filter:
+          - "grafana_"
           - "_linux_amd64.rpm"
       install:
         strategy: install-rpm
