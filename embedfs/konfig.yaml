@@ -85,7 +85,7 @@ check:
         ok:    clog BC stashLog -1 check -2 pre-build -3 "tree clean"  -I "Ok working tree clean"
         catch: |
           XIT=0; FLAG="-W"
-          clog BC is build prod && XIT=1 && FLAG="-E"
+          [ "$(clog ci mode)" = "prod" ] && XIT=1 && FLAG="-E"
           clog BC stashLog -1 check -2 pre-build -3 "tree clean" $FLAG "   working tree NOT clean"
           exit $XIT
       - try: |

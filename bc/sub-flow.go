@@ -201,10 +201,20 @@ func getEnvTokens(envVar string) []string {
 }
 
 // flowIsProduction runs "clog BC is build prod" to determine if in production mode
-func flowIsProduction() bool {
-	release := Releases()[0]
-	return release.Build == "prod"
+// IsProduction reports whether THIS RUN is a production one, which is what
+// makes a failed check abort the flow. The default answers from releases.yaml
+// (the top entry's build), but a host app can repoint it: clog-mrmxf sets it to
+// `clog ci mode`, so a dev build of a commit that carries a production release
+// is not aborted by a check warning (D-I.12: the mode decides, not the file).
+var IsProduction = func() bool {
+	releases := Releases()
+	if len(releases) == 0 {
+		return false
+	}
+	return releases[0].Build == "prod"
 }
+
+func flowIsProduction() bool { return IsProduction() }
 
 // runCheck executes a check command directly using check.Command
 func runCheck(checkName string) error {
