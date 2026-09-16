@@ -28,7 +28,7 @@ const (
 )
 
 // Policy is ci.policy in .clog.yaml: which events build, and which refs
-// deploy to each clog environment (stage, prod).
+// deploy in each mode (dev, prod).
 type Policy struct {
 	Build  []Event               `json:"build"`
 	Deploy map[string]DeployRule `json:"deploy"`
@@ -37,7 +37,7 @@ type Policy struct {
 	Actors []string `json:"actors"`
 }
 
-// DeployRule allows a deploy to one environment. A run deploys when its ref
+// DeployRule allows a deploy in one mode. A run deploys when its ref
 // matches Branches or Tags (or it is a scheduled run and Schedule is set), and
 // the top releases.yaml entry's build equals ReleasesYAML when that is set.
 type DeployRule struct {
@@ -47,17 +47,20 @@ type DeployRule struct {
 	ReleasesYAML string     `json:"releases-yaml"` // e.g. prod: top releases.yaml build must be prod
 }
 
-// Decision is what ci.policy says about the current run.
+// Decision is what ci.policy says about the current run. Build mode and deploy
+// mode are the same value (D-I.13a), so there is one Mode.
 type Decision struct {
-	Env          string `json:"env"`
-	Event        Event  `json:"event"`
-	Ref          string `json:"ref"`
-	Actor        string `json:"actor"`
-	IsTag        bool   `json:"is_tag"`
-	Build        bool   `json:"build"`
-	BuildReason  string `json:"build_reason"`
-	Deploy       bool   `json:"deploy"`
-	DeployReason string `json:"deploy_reason"`
+	Mode         string   `json:"mode"` // dev | prod
+	ModeReason   string   `json:"mode_reason"`
+	Event        Event    `json:"event"`
+	Ref          string   `json:"ref"`
+	Actor        string   `json:"actor"`
+	IsTag        bool     `json:"is_tag"`
+	Build        bool     `json:"build"`
+	BuildReason  string   `json:"build_reason"`
+	Deploy       bool     `json:"deploy"`
+	DeployReason string   `json:"deploy_reason"`
+	Targets      []string `json:"targets"` // deploy targets for this mode
 }
 
 // ReleaseBuild is an overridable hook returning the top releases.yaml entry's
@@ -65,6 +68,15 @@ type Decision struct {
 var ReleaseBuild = func() string {
 	if r := kfg.CurrentRelease(); r != nil {
 		return r.Build
+	}
+	return ""
+}
+
+// ReleaseVersion is an overridable hook returning the top releases.yaml
+// version (e.g. v0.11.4), used by the {tag} / {version} target tokens.
+var ReleaseVersion = func() string {
+	if r := kfg.CurrentRelease(); r != nil {
+		return r.Version
 	}
 	return ""
 }
@@ -96,14 +108,11 @@ func (g execGit) ExactTag() string {
 	return g.git("describe", "--exact-match", "--tags", "HEAD")
 }
 
-// Decide evaluates ci.policy for the current run. Pull requests never deploy,
-// whatever the policy says; a missing policy builds but never deploys.
+// Decide evaluates ci.policy for the current run: which mode it is in, whether
+// it builds, whether it deploys, and to which targets. Pull requests never
+// deploy, whatever the policy says; a missing policy builds but never deploys.
 func Decide(env Env) (Decision, error) {
 	r, err := Resolve(env)
-	if err != nil {
-		return Decision{}, err
-	}
-	clogEnv, err := ResolveEnvName(env)
 	if err != nil {
 		return Decision{}, err
 	}
@@ -113,10 +122,15 @@ func Decide(env Env) (Decision, error) {
 	}
 	pol := cfg.Policy
 
-	d := Decision{Env: clogEnv, Event: eventOf(r), Ref: refName(env, r), Actor: r.Actor, IsTag: r.IsTag}
-	if r.CI == PlatformLocal {
-		d = previewLocal(env, r, d)
+	d := Decision{Event: eventOf(r), Ref: refName(r), Actor: r.Actor, IsTag: r.IsTag}
+	forced, err := modeOverride(env)
+	if err != nil {
+		return Decision{}, err
 	}
+	if r.CI == PlatformLocal {
+		d = previewLocal(env, r, d, forced)
+	}
+	d.Mode, d.ModeReason = decideMode(pol, d, forced)
 
 	switch {
 	case !actorAllowed(pol.Actors, r):
@@ -133,16 +147,75 @@ func Decide(env Env) (Decision, error) {
 	if !d.Build && d.Deploy {
 		d.Deploy, d.DeployReason = false, "not building, so nothing to deploy ("+d.BuildReason+")"
 	}
+	if d.Deploy {
+		if d.Targets, err = TargetNames(cfg, d.Mode, ""); err != nil {
+			return Decision{}, err
+		}
+		if len(d.Targets) == 0 {
+			d.Deploy, d.DeployReason = false, fmt.Sprintf("%s, but no ci.targets deploys in %s mode", d.DeployReason, d.Mode)
+		}
+	}
 	return d, nil
+}
+
+// decideMode picks dev or prod (D-I.12): a tag push or a scheduled run is prod
+// when ci.policy.deploy.prod would accept it (tag glob + releases.yaml build);
+// everything else - branches, dispatch, pull requests, laptops - is dev.
+func decideMode(pol Policy, d Decision, forced string) (string, string) {
+	if forced != "" {
+		return forced, "forced by $" + ModeOverrideVar
+	}
+	switch d.Event {
+	case EventTag, EventSchedule:
+		if ok, why := prodRuleAccepts(pol, d); ok {
+			return ModeProd, why
+		} else {
+			return ModeDev, "dev: " + why
+		}
+	default:
+		return ModeDev, fmt.Sprintf("%s events are always dev", d.Event)
+	}
+}
+
+// prodRuleAccepts reports whether ci.policy.deploy.prod would accept this run,
+// which is what makes it a production build.
+func prodRuleAccepts(pol Policy, d Decision) (bool, string) {
+	rule, ok := pol.Deploy[ModeProd]
+	if !ok {
+		return false, "no ci.policy.deploy.prod rule"
+	}
+	switch d.Event {
+	case EventTag:
+		glob := matchAny(rule.Tags, d.Ref)
+		if glob == "" {
+			return false, fmt.Sprintf("tag %s matches no ci.policy.deploy.prod.tags %v", d.Ref, []string(rule.Tags))
+		}
+		if want := rule.ReleasesYAML; want != "" {
+			if got := ReleaseBuild(); got != want {
+				return false, fmt.Sprintf("tag %s matches %q but releases.yaml build is %q, want %q", d.Ref, glob, got, want)
+			}
+		}
+		return true, fmt.Sprintf("tag %s matches %q and releases.yaml build is %s", d.Ref, glob, ReleaseBuild())
+	case EventSchedule:
+		if !rule.Schedule {
+			return false, "scheduled runs are not allowed by ci.policy.deploy.prod (schedule: true)"
+		}
+		if want := rule.ReleasesYAML; want != "" && ReleaseBuild() != want {
+			return false, fmt.Sprintf("scheduled run, but releases.yaml build is %q, want %q", ReleaseBuild(), want)
+		}
+		return true, "scheduled production rebuild"
+	default:
+		return false, string(d.Event) + " events never reach prod mode"
+	}
 }
 
 func decideDeploy(pol Policy, d Decision) (bool, string) {
 	if d.Event == EventPR {
 		return false, "pull/merge requests never deploy"
 	}
-	rule, ok := pol.Deploy[d.Env]
+	rule, ok := pol.Deploy[d.Mode]
 	if !ok {
-		return false, fmt.Sprintf("no ci.policy.deploy.%s rule", d.Env)
+		return false, fmt.Sprintf("no ci.policy.deploy.%s rule", d.Mode)
 	}
 
 	matched := ""
@@ -161,7 +234,7 @@ func decideDeploy(pol Policy, d Decision) (bool, string) {
 		}
 	}
 	if matched == "" {
-		return false, fmt.Sprintf("%s %q is not allowed by ci.policy.deploy.%s", d.Event, d.Ref, d.Env)
+		return false, fmt.Sprintf("%s %q is not allowed by ci.policy.deploy.%s", d.Event, d.Ref, d.Mode)
 	}
 
 	if want := rule.ReleasesYAML; want != "" {
@@ -170,7 +243,7 @@ func decideDeploy(pol Policy, d Decision) (bool, string) {
 		}
 		matched += fmt.Sprintf(" and releases.yaml build is %s", want)
 	}
-	return true, fmt.Sprintf("%s → deploy %s", matched, d.Env)
+	return true, fmt.Sprintf("%s → deploy %s", matched, d.Mode)
 }
 
 func eventOf(r Resolution) Event {
@@ -191,20 +264,20 @@ func eventOf(r Resolution) Event {
 }
 
 // refName returns the bare branch or tag name the policy matches against.
-func refName(env Env, r Resolution) string {
+func refName(r Resolution) string {
 	ref := strings.TrimPrefix(r.Ref, "refs/heads/")
 	return strings.TrimPrefix(ref, "refs/tags/")
 }
 
-// previewLocal lets a laptop preview a CI decision. Without CLOG_ENV a laptop
-// run stays event "local" (env dev: never deploys). With CLOG_ENV set it is
-// judged as the push it imitates: a tag push when CLOG_ENV=prod and HEAD is
+// previewLocal lets a laptop preview a CI decision. Without $CLOG_MODE a laptop
+// run stays event "local" (dev mode: never deploys). With it set the run is
+// judged as the push it imitates: a tag push when CLOG_MODE=prod and HEAD is
 // exactly on a tag, otherwise a push of the checked-out branch.
-func previewLocal(env Env, r Resolution, d Decision) Decision {
-	if strings.TrimSpace(env.Getenv(EnvOverrideVar)) == "" {
+func previewLocal(env Env, r Resolution, d Decision, forced string) Decision {
+	if forced == "" {
 		return d
 	}
-	if d.Env == EnvProd && r.IsTag {
+	if forced == ModeProd && r.IsTag {
 		if tn, ok := env.Git.(tagNamer); ok {
 			if tag := tn.ExactTag(); tag != "" {
 				d.Event, d.Ref, d.IsTag = EventTag, tag, true
@@ -267,11 +340,19 @@ func globRegexp(glob string) *regexp.Regexp {
 }
 
 // EnvLines renders a decision as KEY=value lines for $GITHUB_ENV or dotenv.
+// build_mode and deploy_mode are the same value (D-I.13a); deploy_mode is empty
+// when this run does not deploy, so a step can gate on it.
 func (d Decision) EnvLines() string {
+	deployMode := ""
+	if d.Deploy {
+		deployMode = d.Mode
+	}
 	return "" +
-		"clog_env=" + d.Env + "\n" +
+		"build_mode=" + d.Mode + "\n" +
+		"deploy_mode=" + deployMode + "\n" +
 		"do_build=" + strconv.FormatBool(d.Build) + "\n" +
-		"do_deploy=" + strconv.FormatBool(d.Deploy) + "\n"
+		"do_deploy=" + strconv.FormatBool(d.Deploy) + "\n" +
+		"deploy_targets=" + strings.Join(d.Targets, " ") + "\n"
 }
 
 var policyFormatFlag string

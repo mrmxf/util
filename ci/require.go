@@ -30,9 +30,15 @@ func Require(env Env, verb string) error {
 	if err != nil {
 		return err
 	}
-	req, ok := cfg.Require[verb]
-	if !ok {
-		slog.Debug("no ci.require entry", "verb", verb)
+	req := cfg.Require[verb]
+	// the target being deployed adds its own secrets (D-I.12): one deploy run
+	// per target, each checked for exactly what that destination needs.
+	target := strings.TrimSpace(env.Getenv(TargetVar))
+	if t, ok := cfg.Targets[target]; ok {
+		req.Env = append(append([]string(nil), req.Env...), t.Require...)
+	}
+	if len(req.Env)+len(req.Optional)+len(req.Config) == 0 {
+		slog.Debug("nothing required", "verb", verb, "target", target)
 		return nil
 	}
 
@@ -76,13 +82,13 @@ func Require(env Env, verb string) error {
 // secretsLocation describes where this context's secrets come from, for
 // messages. It never fails: an incomplete config just gives a vaguer answer.
 func secretsLocation(env Env, inf InfisicalConfig) string {
-	clogEnv, err := ResolveEnvName(env)
+	d, err := Decide(env)
 	if err != nil {
 		return "Infisical"
 	}
-	infEnv := inf.Env[clogEnv]
+	infEnv := inf.Env[d.Mode]
 	if infEnv == "" {
-		infEnv = "ci.infisical.env." + clogEnv + " unset"
+		infEnv = "ci.infisical.env." + d.Mode + " unset"
 	}
 	return fmt.Sprintf("Infisical env=%s path=%s", infEnv, inf.Path)
 }

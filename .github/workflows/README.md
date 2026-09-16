@@ -48,9 +48,12 @@ Every build/deploy job is the same few moves; the decisions live in the caller's
    pinned, checksum-verified release via [`setup-clog`](../actions/setup-clog)),
    then `clog ci resolve` + `clog ci policy` + `ci.*` values into `$GITHUB_ENV`.
 2. **gate** — steps run only when `env.do_build` / `env.do_deploy` is `true`
-   (`ci.policy`: events, branch/tag globs, `releases-yaml`, `actors`).
+   (`ci.policy`: events, branch/tag globs, `releases-yaml`, `actors`). A run is
+   `dev` or `prod` — there is no staging — and the mode picks the Infisical
+   environment, identity and per-target data.
 3. **work** — `clog ci run -- bash -c 'clog ci require <verb> && clog <verb>'`:
    OIDC login to Infisical, secrets in the command's environment only, masked.
+   Deploy runs once per `ci.targets` entry, each with `$CLOG_TARGET` set.
 4. **report** — `clog SlackStash` under `clog ci run` (`HOOK_SLACK` from Infisical).
 
 No workflow takes secrets; each carries least-privilege `permissions:`
@@ -80,7 +83,8 @@ The caller's `.clog.yaml` supplies everything else:
 | `ci.policy` | build / deploy decision (`clog ci policy --help`) |
 | `ci.artifact` | artifact uploaded by build, downloaded by deploy |
 | `ci.title` | Slack title |
-| `ci.docker-ns` | Docker Hub login account (`DOCKER_PAT` from Infisical) |
+| `ci.modes.<dev\|prod>` | per-mode build settings (`clog ci mode get base-url`) |
+| `ci.targets.<name>` | deploy destinations: `kind`, `require`, per-mode data |
 | `ci.require.<verb>` | secrets/config that must exist before the verb runs |
 | `ci.infisical.*` | project, env map, identity UUIDs — `clog ci --config-help` |
 

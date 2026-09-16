@@ -6,7 +6,8 @@
 #  Same shape as build-golang / deploy-s3 on GitHub: no CI/CD variables hold
 #  secrets. Each job gets clog, asks ci.policy (clog ci should) whether to act,
 #  and runs its work under `clog ci run`, which logs in to Infisical with the
-#  job's OIDC id_token. Config: clog ci --config-help.
+#  job's OIDC id_token. A run is dev or prod (no staging) and deploys once per
+#  ci.targets entry. Config: clog ci --config-help.
 #
 #  Use from a project's .gitlab-ci.yml:
 #
@@ -79,4 +80,9 @@ clog-deploy:
   needs: [clog-build]
   script:
     - clog ci should deploy || exit 0
-    - clog ci run -- bash -c 'clog ci require deploy || exit 1; if [ -z "${MAKE:-}" ]; then clog deploy; else clog deploy MAKE "$MAKE"; fi'
+    # one clog deploy per ci.targets entry for this mode (D-I.14)
+    - |
+      for t in $(clog ci targets); do
+        echo "--- deploy $t ($(clog ci mode))"
+        CLOG_TARGET="$t" clog ci run -- bash -c 'clog ci require deploy || exit 1; if [ -z "${MAKE:-}" ]; then clog deploy; else clog deploy MAKE "$MAKE"; fi' || exit 1
+      done

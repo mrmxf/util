@@ -92,15 +92,22 @@ func testConfig(domain string) Config {
 	return Config{
 		Infisical: InfisicalConfig{
 			Domain: domain, ProjectID: testProject, Path: "/clog-mrmxf",
-			Env: map[string]string{"dev": "dev", "stage": "dev", "prod": "prod"},
+			Env: map[string]string{"dev": "dev", "prod": "prod"},
 			Identity: map[string]map[string]string{
 				"github": {"dev-uuid": testDevUUID, "prod-uuid": testProdUUID},
 				"gitlab": {"dev-uuid": testDevUUID, "prod-uuid": testProdUUID},
 			},
 		},
 		Require: map[string]Requirement{
-			"deploy": {Env: []string{"AWS_ACCESS_KEY_ID"}, Optional: []string{"HOOK_SLACK"}, Config: []string{"ci.deploy.bucket"}},
+			"deploy": {Env: []string{"AWS_ACCESS_KEY_ID"}, Optional: []string{"HOOK_SLACK"}, Config: []string{"ci.targets.bucket.dev.bucket"}},
 		},
+		Policy: Policy{Deploy: map[string]DeployRule{
+			"dev":  {Branches: stringList{"main"}},
+			"prod": {Tags: stringList{"v*"}},
+		}},
+		Targets: map[string]Target{"bucket": {Kind: KindBucket, Require: []string{"AWS_SECRET_ACCESS_KEY"},
+			Dev:  map[string]any{"bucket": "b", "prefix": "clogbin/dev"},
+			Prod: map[string]any{"bucket": "b", "prefix": "clogbin/{tag}"}}},
 	}
 }
 
@@ -175,7 +182,6 @@ func TestInfisicalLoginErrorHidesJWT(t *testing.T) {
 func TestIdentityAndEnvSelection(t *testing.T) {
 	inf := testConfig("https://example").Infisical
 	for _, tc := range []struct{ clogEnv, wantKey, wantUUID, wantInf string }{
-		{"stage", "dev-uuid", testDevUUID, "dev"},
 		{"prod", "prod-uuid", testProdUUID, "prod"},
 		{"dev", "dev-uuid", testDevUUID, "dev"},
 	} {
@@ -197,7 +203,6 @@ func TestIdentityAndEnvSelection(t *testing.T) {
 }
 
 func TestRunGitHubPushUsesDevIdentityAndMasks(t *testing.T) {
-	withEnvironments(t, nil)
 	f := newFakeInfisical(t)
 	withConfig(t, testConfig(f.srv.URL), nil)
 	logs := captureLogs(t)
@@ -209,7 +214,7 @@ func TestRunGitHubPushUsesDevIdentityAndMasks(t *testing.T) {
 		t.Fatalf("Run: code=%d err=%v", code, err)
 	}
 	if f.loginIdentity != testDevUUID || f.fetchEnv != "dev" || f.fetchPath != "/clog-mrmxf" {
-		t.Errorf("branch push should use dev identity/env: identity=%s env=%s path=%s", f.loginIdentity, f.fetchEnv, f.fetchPath)
+		t.Errorf("branch push should use the dev identity/env: identity=%s env=%s path=%s", f.loginIdentity, f.fetchEnv, f.fetchPath)
 	}
 	if f.audience != f.srv.URL {
 		t.Errorf("GitHub token audience = %q, want the Infisical domain", f.audience)
@@ -225,13 +230,15 @@ func TestRunGitHubPushUsesDevIdentityAndMasks(t *testing.T) {
 			t.Errorf("log leaks %q:\n%s", secret, logs.String())
 		}
 	}
+	if !strings.Contains(logs.String(), "mode=dev") {
+		t.Errorf("log should name the mode:\n%s", logs.String())
+	}
 	if !strings.Contains(logs.String(), "AWS_ACCESS_KEY_ID") {
 		t.Errorf("log should name the secrets loaded:\n%s", logs.String())
 	}
 }
 
 func TestRunGitHubTagUsesProdIdentity(t *testing.T) {
-	withEnvironments(t, nil)
 	f := newFakeInfisical(t)
 	withConfig(t, testConfig(f.srv.URL), nil)
 	captureLogs(t)
@@ -246,7 +253,6 @@ func TestRunGitHubTagUsesProdIdentity(t *testing.T) {
 }
 
 func TestRunGitLabReadsIDToken(t *testing.T) {
-	withEnvironments(t, nil)
 	f := newFakeInfisical(t)
 	withConfig(t, testConfig(f.srv.URL), nil)
 	captureLogs(t)
@@ -269,10 +275,8 @@ func TestRunGitLabReadsIDToken(t *testing.T) {
 }
 
 func TestRunPullRequestNeverFetches(t *testing.T) {
-	withEnvironments(t, nil)
-	saved := LoadConfig
-	LoadConfig = func() (Config, error) { t.Fatal("pull request must not load Infisical config"); return Config{}, nil }
-	t.Cleanup(func() { LoadConfig = saved })
+	f := newFakeInfisical(t)
+	withConfig(t, testConfig(f.srv.URL), nil)
 	logs := captureLogs(t)
 
 	vars := map[string]string{"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request", "GITHUB_EVENT_PATH": "/event.json", "GITHUB_REPOSITORY": "mrmxf/clog-mrmxf"}
@@ -282,6 +286,9 @@ func TestRunPullRequestNeverFetches(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "without secrets") {
 		t.Errorf("expected a warning that the PR runs without secrets:\n%s", logs.String())
+	}
+	if f.loginIdentity != "" || f.fetchEnv != "" {
+		t.Errorf("a pull request must not reach Infisical (identity=%q env=%q)", f.loginIdentity, f.fetchEnv)
 	}
 }
 
@@ -318,7 +325,6 @@ func TestRunChildExitCode(t *testing.T) {
 }
 
 func TestRequire(t *testing.T) {
-	withEnvironments(t, nil)
 	cfg := testConfig("https://example")
 	local := func(vars map[string]string) Env {
 		e := fakeEnv(vars, "")
@@ -327,7 +333,7 @@ func TestRequire(t *testing.T) {
 	}
 
 	t.Run("all present", func(t *testing.T) {
-		withConfig(t, cfg, map[string]any{"ci.deploy.bucket": "example-bucket"})
+		withConfig(t, cfg, map[string]any{"ci.targets.bucket.dev.bucket": "b"})
 		captureLogs(t)
 		if err := Require(local(map[string]string{"AWS_ACCESS_KEY_ID": "x", "HOOK_SLACK": "y"}), "deploy"); err != nil {
 			t.Fatal(err)
@@ -335,10 +341,10 @@ func TestRequire(t *testing.T) {
 	})
 
 	t.Run("missing secret and config", func(t *testing.T) {
-		withConfig(t, cfg, map[string]any{"ci.deploy.bucket": ""})
+		withConfig(t, cfg, map[string]any{"ci.targets.bucket.dev.bucket": ""})
 		logs := captureLogs(t)
 		err := Require(local(map[string]string{}), "deploy")
-		if err == nil || !strings.Contains(err.Error(), "AWS_ACCESS_KEY_ID") || !strings.Contains(err.Error(), "ci.deploy.bucket") {
+		if err == nil || !strings.Contains(err.Error(), "AWS_ACCESS_KEY_ID") || !strings.Contains(err.Error(), "ci.targets.bucket.dev.bucket") {
 			t.Fatalf("want both missing names in the error, got %v", err)
 		}
 		if !strings.Contains(err.Error(), "clog ci run -- clog deploy") || !strings.Contains(err.Error(), "set in .clog.yaml") {
@@ -350,7 +356,7 @@ func TestRequire(t *testing.T) {
 	})
 
 	t.Run("inside clog ci run points at Infisical", func(t *testing.T) {
-		withConfig(t, cfg, map[string]any{"ci.deploy.bucket": "example-bucket"})
+		withConfig(t, cfg, map[string]any{"ci.targets.bucket.dev.bucket": "b"})
 		captureLogs(t)
 		err := Require(local(map[string]string{RunMarkerVar: "1"}), "deploy")
 		if err == nil || !strings.Contains(err.Error(), "path=/clog-mrmxf") {
@@ -361,7 +367,7 @@ func TestRequire(t *testing.T) {
 	t.Run("config only does not suggest secrets", func(t *testing.T) {
 		withConfig(t, cfg, map[string]any{})
 		captureLogs(t)
-		err := Require(local(map[string]string{"AWS_ACCESS_KEY_ID": "x"}), "deploy")
+		err := Require(local(map[string]string{"AWS_ACCESS_KEY_ID": "x", "AWS_SECRET_ACCESS_KEY": "y"}), "deploy")
 		if err == nil || strings.Contains(err.Error(), "clog ci run") || !strings.Contains(err.Error(), ".clog.yaml") {
 			t.Fatalf("missing config should point at .clog.yaml only, got %v", err)
 		}
@@ -371,6 +377,16 @@ func TestRequire(t *testing.T) {
 		withConfig(t, cfg, nil)
 		if err := Require(local(map[string]string{}), "build"); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	t.Run("the target adds its own secrets", func(t *testing.T) {
+		withConfig(t, cfg, map[string]any{"ci.targets.bucket.dev.bucket": "b"})
+		captureLogs(t)
+		env := local(map[string]string{"AWS_ACCESS_KEY_ID": "x", TargetVar: "bucket"})
+		err := Require(env, "deploy")
+		if err == nil || !strings.Contains(err.Error(), "AWS_SECRET_ACCESS_KEY") {
+			t.Fatalf("want the target's require list checked, got %v", err)
 		}
 	})
 }

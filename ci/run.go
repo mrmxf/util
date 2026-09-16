@@ -72,16 +72,16 @@ func Run(env Env, args []string, stdout io.Writer, dryRun bool) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	clogEnv, err := ResolveEnvName(env)
+	d, err := Decide(env)
 	if err != nil {
 		return 0, err
 	}
 
 	var secrets []Secret
 	if r.Verb == VerbPR {
-		slog.Warn("pull/merge request: running without secrets", "ci", r.CI, "env", clogEnv)
+		slog.Warn("pull/merge request: running without secrets", "ci", r.CI, "mode", d.Mode)
 	} else {
-		secrets, err = fetchForContext(env, r, clogEnv)
+		secrets, err = fetchForContext(env, r, d.Mode)
 		if err != nil {
 			return 0, err
 		}
@@ -99,7 +99,7 @@ func Run(env Env, args []string, stdout io.Writer, dryRun bool) (int, error) {
 }
 
 // fetchForContext logs in the right way for the platform and fetches secrets.
-func fetchForContext(env Env, r Resolution, clogEnv string) ([]Secret, error) {
+func fetchForContext(env Env, r Resolution, mode string) ([]Secret, error) {
 	cfg, err := LoadConfig()
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func fetchForContext(env Env, r Resolution, clogEnv string) ([]Secret, error) {
 	if err := inf.validate(); err != nil {
 		return nil, err
 	}
-	infEnv, err := inf.infisicalEnv(clogEnv)
+	infEnv, err := inf.infisicalEnv(mode)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func fetchForContext(env Env, r Resolution, clogEnv string) ([]Secret, error) {
 	var token, via string
 	switch r.CI {
 	case PlatformGitHub, PlatformGitLab:
-		key, uuid, err := inf.identityFor(r.CI, clogEnv)
+		key, uuid, err := inf.identityFor(r.CI, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +140,7 @@ func fetchForContext(env Env, r Resolution, clogEnv string) ([]Secret, error) {
 		return nil, err
 	}
 	slog.Info("secrets loaded", "count", len(secrets), "names", secretNames(secrets),
-		"clog-env", clogEnv, "infisical-env", infEnv, "path", inf.Path, "via", via)
+		"mode", mode, "infisical-env", infEnv, "path", inf.Path, "via", via)
 	return secrets, nil
 }
 

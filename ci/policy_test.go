@@ -16,26 +16,40 @@ type fakeTagGit struct {
 
 func (f fakeTagGit) ExactTag() string { return f.tag }
 
-// clogMrmxfPolicy mirrors clog-mrmxf's .clog.yaml, parsed through JSON so the
-// string-or-list tags form is exercised.
-func clogMrmxfPolicy(t *testing.T) Policy {
+// clogMrmxfConfig mirrors clog-mrmxf's .clog.yaml (policy + one bucket target),
+// parsed through JSON so the string-or-list and target shapes are exercised.
+func clogMrmxfConfig(t *testing.T) Config {
 	t.Helper()
-	var p Policy
-	raw := `{"build": ["branch", "tag", "dispatch", "schedule"],
-	         "deploy": {"stage": {"branches": ["main", "rc", "dev", "release/*"]},
-	                    "prod":  {"tags": "v*", "releases-yaml": "prod", "schedule": true}}}`
-	if err := json.Unmarshal([]byte(raw), &p); err != nil {
+	var cfg Config
+	raw := `{
+	  "policy": {
+	    "build": ["branch", "tag", "dispatch", "schedule"],
+	    "deploy": {
+	      "dev":  {"branches": ["main", "rc", "dev", "release/*"]},
+	      "prod": {"tags": "v*", "releases-yaml": "prod", "schedule": true}
+	    }
+	  },
+	  "targets": {
+	    "bucket": {
+	      "kind": "bucket",
+	      "require": ["AWS_ACCESS_KEY_ID"],
+	      "dev":  {"bucket": "b", "prefix": "clogbin/dev",     "installer": "clogdev"},
+	      "prod": {"bucket": "b", "prefix": "clogbin/{tag}",   "installer": "clog"}
+	    }
+	  }}`
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	return p
+	return cfg
 }
 
-func withPolicy(t *testing.T, p Policy, releaseBuild string) {
+func withCfg(t *testing.T, cfg Config, releaseBuild string) {
 	t.Helper()
-	savedCfg, savedRel := LoadConfig, ReleaseBuild
-	LoadConfig = func() (Config, error) { return Config{Policy: p}, nil }
+	savedCfg, savedBuild, savedVer := LoadConfig, ReleaseBuild, ReleaseVersion
+	LoadConfig = func() (Config, error) { return cfg, nil }
 	ReleaseBuild = func() string { return releaseBuild }
-	t.Cleanup(func() { LoadConfig, ReleaseBuild = savedCfg, savedRel })
+	ReleaseVersion = func() string { return "v9.9.9" }
+	t.Cleanup(func() { LoadConfig, ReleaseBuild, ReleaseVersion = savedCfg, savedBuild, savedVer })
 }
 
 func ghEnv(event, ref string, extra map[string]string) Env {
@@ -53,100 +67,125 @@ func ghEnv(event, ref string, extra map[string]string) Env {
 	return fakeEnv(vars, payload)
 }
 
-func TestDecide(t *testing.T) {
-	withEnvironments(t, nil)
-	pol := clogMrmxfPolicy(t)
+func laptop(vars map[string]string, git GitResolver) Env {
+	return Env{Getenv: func(k string) string { return vars[k] }, Git: git}
+}
+
+// TestDecideModes is the §1.1 table of the migration plan: which event, in
+// which mode, deploying or not.
+func TestDecideModes(t *testing.T) {
+	base := clogMrmxfConfig(t)
 
 	tests := []struct {
 		name         string
 		env          Env
 		release      string
-		policy       *Policy
-		wantEnv      string
+		cfg          *Config
+		wantMode     string
 		wantBuild    bool
 		wantDeploy   bool
 		reasonSubstr string
 	}{
-		{name: "branch main → stage deploy", env: ghEnv("push", "refs/heads/main", nil),
-			wantEnv: "stage", wantBuild: true, wantDeploy: true, reasonSubstr: `matches "main"`},
-		{name: "feature branch builds, no deploy", env: ghEnv("push", "refs/heads/feature/x", nil),
-			wantEnv: "stage", wantBuild: true, wantDeploy: false, reasonSubstr: "not allowed"},
-		{name: "* crosses slash", env: ghEnv("push", "refs/heads/release/2026/09", nil),
-			wantEnv: "stage", wantBuild: true, wantDeploy: true, reasonSubstr: `"release/*"`},
-		{name: "v tag with prod release → prod deploy", env: ghEnv("push", "refs/tags/v1.2.3", nil), release: "prod",
-			wantEnv: "prod", wantBuild: true, wantDeploy: true, reasonSubstr: "releases.yaml build is prod"},
-		{name: "v tag but releases.yaml says dev", env: ghEnv("push", "refs/tags/v1.2.3", nil), release: "dev",
-			wantEnv: "prod", wantBuild: true, wantDeploy: false, reasonSubstr: `want "prod"`},
-		{name: "non-v tag", env: ghEnv("push", "refs/tags/nightly", nil), release: "prod",
-			wantEnv: "prod", wantBuild: true, wantDeploy: false},
-		{name: "pull request never deploys", env: ghEnv("pull_request", "refs/pull/1/merge", nil),
-			policy:  &Policy{Deploy: map[string]DeployRule{"dev": {Branches: stringList{"*"}}}},
-			wantEnv: "dev", wantBuild: true, wantDeploy: false, reasonSubstr: "never deploy"},
-		{name: "pr not in build list", env: ghEnv("pull_request", "refs/pull/1/merge", nil),
-			wantEnv: "dev", wantBuild: false, wantDeploy: false, reasonSubstr: "not in ci.policy.build"},
-		{name: "dispatch on main", env: ghEnv("workflow_dispatch", "refs/heads/main", nil),
-			wantEnv: "stage", wantBuild: true, wantDeploy: true},
-		{name: "gitlab schedule → prod when schedule: true", release: "prod",
-			env:     fakeEnv(map[string]string{"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "schedule", "CI_DEFAULT_BRANCH": "main"}, ""),
-			wantEnv: "prod", wantBuild: true, wantDeploy: true, reasonSubstr: "schedule: true"},
-		{name: "gitlab tag", release: "prod",
-			env:     fakeEnv(map[string]string{"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "push", "CI_COMMIT_REF_NAME": "v2.0.0", "CI_COMMIT_TAG": "v2.0.0"}, ""),
-			wantEnv: "prod", wantBuild: true, wantDeploy: true},
-		{name: "CLOG_ENV=prod cannot deploy a branch", env: ghEnv("push", "refs/heads/main", map[string]string{"CLOG_ENV": "prod"}), release: "prod",
-			wantEnv: "prod", wantBuild: true, wantDeploy: false},
-		{name: "not built → not deployed", env: ghEnv("push", "refs/heads/main", nil),
-			policy:  &Policy{Build: []Event{EventTag}, Deploy: pol.Deploy},
-			wantEnv: "stage", wantBuild: false, wantDeploy: false, reasonSubstr: "nothing to deploy"},
-		{name: "actor not allowed: no build, no deploy", env: ghEnv("push", "refs/heads/main", nil),
-			policy:  &Policy{Build: pol.Build, Deploy: pol.Deploy, Actors: []string{"CharlottesWeb2"}},
-			wantEnv: "stage", wantBuild: false, wantDeploy: false, reasonSubstr: "not in ci.policy.actors"},
-		{name: "actor allowed case-insensitively", env: ghEnv("push", "refs/heads/main", nil),
-			policy:  &Policy{Build: pol.Build, Deploy: pol.Deploy, Actors: []string{"MRMXF"}},
-			wantEnv: "stage", wantBuild: true, wantDeploy: true},
-		{name: "no policy builds, never deploys", env: ghEnv("push", "refs/heads/main", nil), policy: &Policy{},
-			wantEnv: "stage", wantBuild: true, wantDeploy: false, reasonSubstr: "no ci.policy.deploy.stage"},
-		{name: "laptop defaults to dev: no deploy",
-			env:     Env{Getenv: func(string) string { return "" }, Git: fakeGit{ref: "main"}},
-			wantEnv: "dev", wantBuild: false, wantDeploy: false},
-		{name: "laptop CLOG_ENV=stage previews a branch push",
-			env:     Env{Getenv: func(k string) string { return map[string]string{"CLOG_ENV": "stage"}[k] }, Git: fakeGit{ref: "main"}},
-			wantEnv: "stage", wantBuild: true, wantDeploy: true, reasonSubstr: `branch main matches "main"`},
-		{name: "laptop on branch AND tag previews stage as the branch",
-			env:     Env{Getenv: func(k string) string { return map[string]string{"CLOG_ENV": "stage"}[k] }, Git: fakeTagGit{fakeGit{ref: "main", onTag: true}, "v3.0.0"}},
-			wantEnv: "stage", wantBuild: true, wantDeploy: true, reasonSubstr: "branch main"},
-		{name: "laptop CLOG_ENV=prod on a tag previews a tag push", release: "prod",
-			env:     Env{Getenv: func(k string) string { return map[string]string{"CLOG_ENV": "prod"}[k] }, Git: fakeTagGit{fakeGit{ref: "main", onTag: true}, "v3.0.0"}},
-			wantEnv: "prod", wantBuild: true, wantDeploy: true, reasonSubstr: "tag v3.0.0"},
-		{name: "laptop CLOG_ENV=prod off a tag cannot deploy", release: "prod",
-			env:     Env{Getenv: func(k string) string { return map[string]string{"CLOG_ENV": "prod"}[k] }, Git: fakeGit{ref: "main"}},
-			wantEnv: "prod", wantBuild: true, wantDeploy: false},
+		{name: "branch push is dev", env: ghEnv("push", "refs/heads/main", nil), release: "prod",
+			wantMode: "dev", wantBuild: true, wantDeploy: true, reasonSubstr: `branch main matches "main"`},
+		{name: "feature branch builds, does not deploy", env: ghEnv("push", "refs/heads/feature/x", nil),
+			wantMode: "dev", wantBuild: true, wantDeploy: false, reasonSubstr: "not allowed"},
+		{name: "dispatch is dev", env: ghEnv("workflow_dispatch", "refs/heads/rc", nil), release: "prod",
+			wantMode: "dev", wantBuild: true, wantDeploy: true},
+		{name: "tag + releases prod is prod", env: ghEnv("push", "refs/tags/v1.2.3", nil), release: "prod",
+			wantMode: "prod", wantBuild: true, wantDeploy: true, reasonSubstr: "releases.yaml build is prod"},
+		{name: "tag + releases dev falls back to dev mode", env: ghEnv("push", "refs/tags/v1.2.3", nil), release: "dev",
+			wantMode: "dev", wantBuild: true, wantDeploy: false, reasonSubstr: `releases.yaml build is "dev"`},
+		{name: "non-v tag is dev", env: ghEnv("push", "refs/tags/nightly", nil), release: "prod",
+			wantMode: "dev", wantBuild: true, wantDeploy: false},
+		{name: "pull request is dev and never deploys", env: ghEnv("pull_request", "refs/pull/1/merge", nil),
+			wantMode: "dev", wantBuild: false, wantDeploy: false, reasonSubstr: "never deploy"},
+		{name: "pull request with pr in the build list still never deploys", env: ghEnv("pull_request", "refs/pull/1/merge", nil),
+			cfg: &Config{Policy: Policy{Build: []Event{EventPR}, Deploy: map[string]DeployRule{"dev": {Branches: stringList{"*"}}}},
+				Targets: map[string]Target{"bucket": {Kind: KindBucket, Dev: map[string]any{"bucket": "b"}}}},
+			wantMode: "dev", wantBuild: true, wantDeploy: false, reasonSubstr: "never deploy"},
+		{name: "schedule is prod when allowed", release: "prod",
+			env:      fakeEnv(map[string]string{"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "schedule", "CI_DEFAULT_BRANCH": "main"}, ""),
+			wantMode: "prod", wantBuild: true, wantDeploy: true, reasonSubstr: "scheduled"},
+		{name: "gitlab tag is prod", release: "prod",
+			env:      fakeEnv(map[string]string{"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "push", "CI_COMMIT_REF_NAME": "v2.0.0", "CI_COMMIT_TAG": "v2.0.0"}, ""),
+			wantMode: "prod", wantBuild: true, wantDeploy: true},
+		{name: "CLOG_MODE=prod on a branch: prod mode, but the branch cannot deploy prod",
+			env: ghEnv("push", "refs/heads/main", map[string]string{"CLOG_MODE": "prod"}), release: "prod",
+			wantMode: "prod", wantBuild: true, wantDeploy: false, reasonSubstr: "is not allowed by ci.policy.deploy.prod"},
+		{name: "laptop is dev and does not deploy (local is not in the build list)", env: laptop(nil, fakeGit{ref: "main"}), release: "prod",
+			wantMode: "dev", wantBuild: false, wantDeploy: false},
+		{name: "laptop CLOG_MODE=dev previews the branch push",
+			env:      laptop(map[string]string{"CLOG_MODE": "dev"}, fakeGit{ref: "main"}),
+			wantMode: "dev", wantBuild: true, wantDeploy: true, reasonSubstr: "branch main"},
+		{name: "laptop CLOG_MODE=prod on a tag previews the tag push", release: "prod",
+			env:      laptop(map[string]string{"CLOG_MODE": "prod"}, fakeTagGit{fakeGit{ref: "main", onTag: true}, "v3.0.0"}),
+			wantMode: "prod", wantBuild: true, wantDeploy: true, reasonSubstr: "tag v3.0.0"},
+		{name: "actor not allowed", env: ghEnv("push", "refs/heads/main", nil), release: "prod",
+			cfg:      &Config{Policy: Policy{Build: base.Policy.Build, Deploy: base.Policy.Deploy, Actors: []string{"someone-else"}}, Targets: base.Targets},
+			wantMode: "dev", wantBuild: false, wantDeploy: false, reasonSubstr: "ci.policy.actors"},
+		{name: "no target for the mode = no deploy", env: ghEnv("push", "refs/heads/main", nil), release: "prod",
+			cfg: &Config{Policy: base.Policy, Targets: map[string]Target{
+				"pages": {Kind: KindCloudflarePage, Modes: []string{"prod"}, Prod: map[string]any{"project": "p"}}}},
+			wantMode: "dev", wantBuild: true, wantDeploy: false, reasonSubstr: "no ci.targets deploys in dev mode"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			p := pol
-			if tc.policy != nil {
-				p = *tc.policy
+			cfg := base
+			if tc.cfg != nil {
+				cfg = *tc.cfg
 			}
-			withPolicy(t, p, tc.release)
+			withCfg(t, cfg, tc.release)
 			d, err := Decide(tc.env)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if d.Env != tc.wantEnv || d.Build != tc.wantBuild || d.Deploy != tc.wantDeploy {
-				t.Errorf("got env=%s build=%v deploy=%v (%s | %s), want env=%s build=%v deploy=%v",
-					d.Env, d.Build, d.Deploy, d.BuildReason, d.DeployReason, tc.wantEnv, tc.wantBuild, tc.wantDeploy)
+			if d.Mode != tc.wantMode || d.Build != tc.wantBuild || d.Deploy != tc.wantDeploy {
+				t.Errorf("got mode=%s build=%v deploy=%v (%s | %s | %s), want mode=%s build=%v deploy=%v",
+					d.Mode, d.Build, d.Deploy, d.ModeReason, d.BuildReason, d.DeployReason, tc.wantMode, tc.wantBuild, tc.wantDeploy)
 			}
-			if tc.reasonSubstr != "" && !strings.Contains(d.BuildReason+" | "+d.DeployReason, tc.reasonSubstr) {
-				t.Errorf("reasons %q / %q do not mention %q", d.BuildReason, d.DeployReason, tc.reasonSubstr)
+			if tc.reasonSubstr != "" {
+				all := d.ModeReason + " | " + d.BuildReason + " | " + d.DeployReason
+				if !strings.Contains(all, tc.reasonSubstr) {
+					t.Errorf("reasons %q do not mention %q", all, tc.reasonSubstr)
+				}
 			}
 		})
 	}
 }
 
+func TestModeOverrideRejectsStage(t *testing.T) {
+	withCfg(t, clogMrmxfConfig(t), "prod")
+	for _, v := range []string{"CLOG_MODE", "CLOG_ENV"} {
+		_, err := Decide(ghEnv("push", "refs/heads/main", map[string]string{v: "stage"}))
+		if err == nil || !strings.Contains(err.Error(), "staging was removed") {
+			t.Errorf("%s=stage should fail loudly, got %v", v, err)
+		}
+	}
+	// the legacy name still works for a real mode
+	d, err := Decide(ghEnv("push", "refs/heads/main", map[string]string{"CLOG_ENV": "prod"}))
+	if err != nil || d.Mode != ModeProd {
+		t.Errorf("CLOG_ENV=prod: mode=%q err=%v", d.Mode, err)
+	}
+}
+
 func TestDecisionEnvLines(t *testing.T) {
-	d := Decision{Env: "stage", Build: true, Deploy: false}
-	if got := d.EnvLines(); got != "clog_env=stage\ndo_build=true\ndo_deploy=false\n" {
-		t.Errorf("EnvLines = %q", got)
+	withCfg(t, clogMrmxfConfig(t), "prod")
+	d, err := Decide(ghEnv("push", "refs/tags/v1.2.3", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "build_mode=prod\ndeploy_mode=prod\ndo_build=true\ndo_deploy=true\ndeploy_targets=bucket\n"
+	if got := d.EnvLines(); got != want {
+		t.Errorf("EnvLines =\n%q\nwant\n%q", got, want)
+	}
+
+	d2, err := Decide(ghEnv("push", "refs/heads/feature/x", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d2.EnvLines(); !strings.Contains(got, "deploy_mode=\n") || !strings.Contains(got, "deploy_targets=\n") {
+		t.Errorf("a non-deploying run should leave deploy_mode and deploy_targets empty:\n%q", got)
 	}
 }
 

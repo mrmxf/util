@@ -11,7 +11,8 @@ package ci
 const configHelp = `clog ci --config-help : CI secrets via Infisical OIDC
 
 STATUS
-  implemented: config contract, clog ci run / require / policy / should / get, util workflows v1.
+  implemented: config contract, clog ci run / require / policy / should / get / mode / targets /
+  target, util workflows v1. No staging: a run is dev or prod (D-I.12).
 
 MODEL
   CI yaml     : triggers + OIDC permission + one "clog ci run -- clog <verb>" per job. No secrets.
@@ -19,41 +20,57 @@ MODEL
   Infisical   : secrets only. CI logs in with the platform OIDC token (no stored credential).
   workflows   : mrmxf/util/.github/workflows/{build-golang,build-hugo,deploy-s3}.yaml@workflows-v1
                   (first step mrmxf/util/.github/actions/clog-prepare); GitLab: util/gitlab/clog.gitlab-ci.yml
-  gate        : clog ci policy --format env >> $GITHUB_ENV  -> if: env.do_deploy == 'true'
+  gate        : clog ci policy --format env >> $GITHUB_ENV
+                  -> build_mode deploy_mode do_build do_deploy deploy_targets
+                  -> if: env.do_build == 'true'   /   if: env.do_deploy == 'true'
                   (or in a script:  clog ci should deploy || exit 0)
+  deploy      : one run per target (D-I.14):
+                  for t in $deploy_targets; do
+                    CLOG_TARGET="$t" clog ci run -- bash -c 'clog ci require deploy && clog deploy' || exit 1
+                  done
   flow        : clog ci run -- clog <verb>
                 = clog ci env -> platform OIDC token -> POST <domain>/api/v1/auth/oidc-auth/login
                   -> GET <domain>/api/v4/secrets (imports merged) -> exec <verb> with secrets in env
                   (no Infisical CLI needed in CI; laptop uses the infisical login session)
 
-CLOG ENV -> INFISICAL (clog ci env decides; see clog ci env --help)
-  clog env  when                        infisical env  identity   login
-  dev       laptop, pull/merge request  dev            -          laptop: user login. PR: NO secrets, never.
-  stage     branch push, dispatch       dev            dev-uuid   OIDC
-  prod      tag push, schedule          prod           prod-uuid  OIDC
+MODE -> INFISICAL (clog ci mode decides; see clog ci mode --help)
+  mode  when                                        infisical env  identity   login
+  dev   laptop, PR, branch push, dispatch           dev            dev-uuid   OIDC (laptop: user login)
+  prod  tag push / schedule that ci.policy.deploy.  prod           prod-uuid  OIDC
+        prod accepts (tag glob + releases.yaml prod)
+  Build mode and deploy mode are always the same. A PR gets NO secrets, ever.
+  Force a mode: CLOG_MODE=prod (CLOG_ENV still read with a warning; =stage is an error).
 
 .CLOG.YAML (keys are lowercase; values below are the contract)
   ci:
     artifact: "<name>"                       # workflows: build uploads / deploy downloads it
     title: "<slack title>"
-    docker-ns: "<docker hub account>"        # optional; DOCKER_PAT comes from Infisical
     policy:                                  # clog ci policy --help
       actors: [<login>]                      # optional: only these accounts build/deploy in CI
       build: [branch, tag, dispatch]         # branch|tag|dispatch|schedule|pr|local
-      deploy:                                # keyed by clog env; PRs never deploy
-        stage: {branches: [main, rc, dev]}   # globs, * also matches "/"
-        prod:  {tags: ["v*"], releases-yaml: prod}   # + schedule: true to let scheduled runs deploy
-    deploy:
-      bucket: "<s3-bucket>"                  # non-secret config, not in Infisical
-    require:                                 # fail before any work if missing
-      deploy: {env: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], optional: [HOOK_SLACK], config: [ci.deploy.bucket]}
+      deploy:                                # keyed by MODE; PRs never deploy
+        dev:  {branches: [main, rc, dev]}    # globs, * also matches "/"
+        prod: {tags: ["v*"], releases-yaml: prod}    # + schedule: true to let scheduled runs deploy
+    modes:                                   # per-mode BUILD settings: clog ci mode get <key>
+      dev:  {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts"}
+      prod: {base-url: "https://example.com/"}
+    targets:                                 # deploy destinations: clog ci targets / target get
+      bucket:
+        kind: bucket                         # container-registry | bucket | package
+                                             # cloudflare-pages | github-pages | gitlab-pages
+        require: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]   # secrets this destination needs
+        # modes: [prod]                      # optional; default: the modes with a data block
+        dev:  {bucket: "<s3-bucket>", prefix: "bin/dev"}
+        prod: {bucket: "<s3-bucket>", prefix: "bin/{tag}"}    # tokens {tag} {version} {sha} {mode}
+    require:                                 # extra checks, merged with the target's require
+      deploy: {optional: [HOOK_SLACK]}
     infisical:
       domain: "https://eu.infisical.com"     # exact instance URL (EU != app.infisical.com)
       project-id: "<uuid>"                   # Project Settings -> Project ID; same as .infisical.json workspaceId
       project-slug: "<slug>"
       path: "/<repo>"                        # folder with this repo's secrets
       audience: ""                           # optional; OIDC aud clog requests, default = domain
-      env: {dev: dev, stage: dev, prod: prod}   # clog env -> Infisical env slug (all three keys)
+      env: {dev: dev, prod: prod}            # mode -> Infisical env slug
       identity:
         github: {dev-uuid: "<uuid>", prod-uuid: "<uuid>"}
         gitlab: {dev-uuid: "<uuid>", prod-uuid: "<uuid>"}
@@ -80,14 +97,15 @@ MACHINE IDENTITIES (one per platform x {dev,prod}; name e.g. gh-<org>-dev, gl-<o
       OIDC Discovery URL : https://token.actions.githubusercontent.com
       Issuer             : https://token.actions.githubusercontent.com
       Audiences          : <ci.infisical.domain>          # clog requests the token with this audience
-      Subject  dev-uuid  : repo:<owner>/<repo>:ref:refs/heads/*
+      Subject  dev-uuid  : repo:<owner>/<repo>:ref:refs/*        # refs/* not refs/heads/*: a tag
+                                                                   # whose release is not prod is a dev build
       Subject  prod-uuid : repo:<owner>/<repo>:ref:refs/tags/v*
       Claims (optional)  : job_workflow_ref = <owner>/util/.github/workflows/*@refs/tags/workflows-v1
     GitLab CI (gitlab.com)
       OIDC Discovery URL : https://gitlab.com
       Issuer             : https://gitlab.com
       Audiences          : <ci.infisical.domain>          # must equal id_tokens aud in .gitlab-ci.yml
-      Subject  dev-uuid  : project_path:<group>/<project>:ref_type:branch:ref:*
+      Subject  dev-uuid  : project_path:<group>/<project>:ref_type:*:ref:*
       Subject  prod-uuid : project_path:<group>/<project>:ref_type:tag:ref:v*
     Access Token TTL     : 900 (a job, not a day)
 

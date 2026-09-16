@@ -13,8 +13,11 @@
 #
 #  Values added to $GITHUB_ENV:
 #    clog ci resolve : ci verb ref repo url depth actor is_production is_tag
-#    clog ci policy  : clog_env do_build do_deploy
-#    clog ci get     : ci_artifact ci_title ci_docker_ns
+#    clog ci policy  : build_mode deploy_mode do_build do_deploy deploy_targets
+#    clog ci get     : ci_artifact ci_title
+#
+#  There is no staging: a run is dev or prod (D-I.12), and deploy destinations
+#  are ci.targets entries - the deploy step runs once per target.
 #
 #  Setup of .clog.yaml and Infisical: clog ci --config-help
 
@@ -100,7 +103,6 @@ runs:
         {
           echo "ci_artifact=$(clog ci get ci.artifact)"
           echo "ci_title=$(clog ci get ci.title)"
-          echo "ci_docker_ns=$(clog ci get ci.docker-ns)"
         } >> "$GITHUB_ENV"
         clog ci policy
 

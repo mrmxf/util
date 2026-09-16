@@ -51,9 +51,13 @@ jobs:
           clog-repo: ${{ inputs.clog-repo }}
           token: ${{ secrets.clog_download_token }}
 
-      - name: login to Docker Hub (DOCKER_PAT from Infisical)
-        if: env.do_build == 'true' && env.ci_docker_ns != ''
-        run: clog ci run -- bash -c 'printf %s "$DOCKER_PAT" | docker login -u "$ci_docker_ns" --password-stdin'
+      - name: login to the container registry (DOCKER_PAT from Infisical)
+        if: env.do_deploy == 'true'
+        run: |
+          t="$(clog ci targets --kind container-registry | head -1)"
+          [ -z "$t" ] && { clog Log -I "no container-registry target - no docker login"; exit 0; }
+          CLOG_TARGET="$t" clog ci run -- bash -c \
+            'printf %s "$DOCKER_PAT" | docker login -u "$(clog ci target get user --required)" --password-stdin'
 
       - name: install toolchain (slsa-verifier, ko)
         if: env.do_build == 'true'
@@ -64,7 +68,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           clog Install ko --verbose
 
-      - name: build (clog ci run -- clog build)
+      - name: build (clog ci run -- clog build, mode ${{ env.build_mode }})
         if: env.do_build == 'true'
         env:
           MAKE: ${{ inputs.make }}
@@ -84,8 +88,8 @@ jobs:
       - name: notify-team (slack, HOOK_SLACK from Infisical)
         if: always() && env.do_build == 'true'
         env:
-          MD: "• build ${{ env.clog_env }} ${{ env.ref }} by ${{ env.actor }}\n• ${{ env.url }}\n• run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
+          MD: "• build ${{ env.build_mode }} ${{ env.ref }} by ${{ env.actor }}\n• ${{ env.url }}\n• run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
         run: |
           clog ci run -- bash -c '
             [ -z "${HOOK_SLACK:-}" ] && { clog Log -W "HOOK_SLACK not set - no Slack notify"; exit 0; }
-            clog SlackStash "${ci_title:-build} ($clog_env)" --md "$MD"'
+            clog SlackStash "${ci_title:-build} ($build_mode)" --md "$MD"'

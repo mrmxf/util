@@ -3,12 +3,15 @@
 #  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
 #
 #  deploy-s3 — callable workflow: deploy the build artifact via `clog deploy`.
+#  (the name is historical: the destinations are ci.targets entries, of any kind)
 #
 #  v1 (Infisical): no secrets are passed in. clog-prepare decides from the
-#  caller's .clog.yaml (ci.policy) whether this run deploys and to which env;
-#  AWS keys and HOOK_SLACK come from Infisical through `clog ci run`, and
-#  `clog ci require deploy` stops the job before any upload if one is missing.
-#  The bucket is .clog.yaml config (ci.deploy.bucket). Config: clog ci --config-help.
+#  caller's .clog.yaml (ci.policy) whether this run deploys and in which mode
+#  (dev|prod); the destinations are its ci.targets entries and the step runs
+#  `clog deploy` once per target, each with $CLOG_TARGET set. Secrets come from
+#  Infisical through `clog ci run`, and `clog ci require deploy` (target's
+#  require list included) stops the job before any upload if one is missing.
+#  Config: clog ci --config-help.
 #
 #  Caller:
 #    jobs:
@@ -59,20 +62,24 @@ jobs:
           name: ${{ env.ci_artifact }}
           path: tmp
 
-      - name: deploy (clog ci run -- clog deploy)
+      - name: deploy ${{ env.deploy_targets }} (one clog deploy per target)
         if: env.do_deploy == 'true'
         env:
           MAKE: ${{ inputs.make }}
         run: |
-          clog ci run -- bash -c '
-            clog ci require deploy || exit 1
-            if [ -z "$MAKE" ]; then clog deploy; else clog deploy MAKE "$MAKE"; fi'
+          for t in $deploy_targets; do
+            echo "::group::deploy $t (${{ env.deploy_mode }})"
+            CLOG_TARGET="$t" clog ci run -- bash -c '
+              clog ci require deploy || exit 1
+              if [ -z "$MAKE" ]; then clog deploy; else clog deploy MAKE "$MAKE"; fi' || exit 1
+            echo "::endgroup::"
+          done
 
       - name: notify-team (slack, HOOK_SLACK from Infisical)
         if: always() && env.do_deploy == 'true'
         env:
-          MD: "• deploy ${{ env.clog_env }} ${{ env.ref }} by ${{ env.actor }}\n• ${{ env.url }}\n• run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
+          MD: "• deploy ${{ env.deploy_mode }} ${{ env.ref }} by ${{ env.actor }}\n• ${{ env.url }}\n• run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
         run: |
           clog ci run -- bash -c '
             [ -z "${HOOK_SLACK:-}" ] && { clog Log -W "HOOK_SLACK not set - no Slack notify"; exit 0; }
-            clog SlackStash "${ci_title:-deploy} ($clog_env)" --md "$MD"'
+            clog SlackStash "${ci_title:-deploy} ($deploy_mode)" --md "$MD"'

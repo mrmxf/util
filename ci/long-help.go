@@ -13,7 +13,9 @@ identically on every platform and on a developer laptop.
 
 Sub-commands:
   resolve   print the normalized event as JSON or KEY=value env lines
-  env       print the environment this event builds, or one of its settings
+  mode      print this run's mode (dev|prod) or one of its ci.modes settings
+  targets   list the deploy targets for this run's mode
+  target    print one value from $CLOG_TARGET's data
   run       run a command with this repo's Infisical secrets in its environment
   require   fail early if the secrets/config a verb needs are missing
   policy    print what ci.policy decides for this run (build? deploy? why?)
@@ -23,43 +25,32 @@ Sub-commands:
 See 'clog ci resolve --help' and 'clog ci env --help' for details.
 Setting up CI secrets (Infisical OIDC, identities, .clog.yaml keys): clog ci --config-help`
 
-const envHelp = `ci env - which environment does this event build, and with what settings?
+const modeHelp = `ci mode - dev or prod? and what does that mean here?
 
-'ci resolve' answers "what happened". 'ci env' answers "so what do I build?".
-It maps the resolved event onto exactly one environment name:
+  clog ci mode                    dev | prod
+  clog ci mode show               this mode's ci.modes settings, as KEY=value lines
+  clog ci mode get base-url       one setting
+  CLOG_MODE=prod clog ci mode     force the mode (a laptop reproducing a CI run)
 
-  dev     a laptop build, or a pull/merge request. Never publishes
-  stage   a branch push or a manual dispatch
-  prod    a tag push, or a scheduled run (which rebuilds the production tag)
+There is no staging (D-I.12). A run is dev or prod, and the same value drives the
+build and the deploy:
 
-A pull request is dev even when its ref is a tag: untrusted input must never
-select a deployment target.
+  dev    a laptop, a pull/merge request, a branch push, a manual run
+  prod   a tag push or a scheduled run that ci.policy.deploy.prod accepts
+         (tag glob + releases.yaml build: prod)
 
-The SETTINGS for each environment live in the consuming repo's .clog.yaml under
-an 'environments' key, because a URL or an image tag is site-specific while this
-mapping is not:
+The mode picks the Infisical environment and identity, and which block of each
+deploy target applies. Per-mode BUILD settings live in ci.modes:
 
-  environments:
-    dev:   {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts", image-tags: []}
-    stage: {base-url: "https://staging.example.com/", image-tags: ["latest-stage"]}
-    prod:  {base-url: "https://example.com/", image-tags: ["latest"]}
+  ci:
+    modes:
+      dev:  {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts"}
+      prod: {base-url: "https://example.com/",   hugo-flags: ""}
 
-Usage:
-  clog ci env                    print the environment name
-  clog ci env show               print the whole resolved row as KEY=value lines
-  clog ci env get base-url       print one setting
+  hugo build --baseURL "$(clog ci mode get base-url)" $(clog ci mode get hugo-flags)
 
-Scalars print as-is; list values print one item per line, so both of these work:
-
-  hugo build --baseURL "$(clog ci env get base-url)"
-  for tag in $(clog ci env get image-tags); do ko build --tags "$tag"; done
-
-Override the mapping with $CLOG_ENV to reproduce another environment locally:
-
-  CLOG_ENV=prod clog ci env show
-
-An unknown $CLOG_ENV is an error rather than a fallback — a typo should fail the
-build, not quietly publish the wrong site.`
+$CLOG_ENV is the old name for $CLOG_MODE and still works with a warning;
+CLOG_MODE=stage is an error rather than a guess.`
 
 const resolveHelp = `ci resolve - resolve the active CI event into normalized ref/repo/verb
 
@@ -158,3 +149,32 @@ and, if releases-yaml is set, the top releases.yaml entry has that build value.
 
 Hard rules: pull/merge requests never deploy; no rule for the env = no deploy;
 no ci.policy.build = everything builds; a run that does not build does not deploy.`
+
+const targetsHelp = `ci targets / ci target - where does this run deploy to?
+
+  clog ci targets                       target names for this mode, one per line
+  clog ci targets --kind container-registry
+  CLOG_TARGET=bucket clog ci target get prefix
+  CLOG_TARGET=bucket clog ci target get kind
+
+A deploy sends the build to one destination per target, so a project with two
+destinations declares two targets and the deploy step runs twice (D-I.14):
+
+  for t in $(clog ci targets); do
+    CLOG_TARGET="$t" clog ci run -- bash -c 'clog ci require deploy && clog deploy' || exit 1
+  done
+
+Config - kind, the secrets the destination needs, and a block per mode:
+
+  ci:
+    targets:
+      bucket:
+        kind: bucket        # container-registry | bucket | package
+                            # cloudflare-pages | github-pages | gitlab-pages
+        require: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+        modes: [dev, prod]  # optional; default: the modes that have a block
+        dev:  {bucket: my-bucket, prefix: bin/dev}
+        prod: {bucket: my-bucket, prefix: "bin/{tag}"}
+
+Values expand {tag} {version} {sha} {mode}. "kind" is readable as a key.
+clog ci require deploy also checks the current target's require list.`

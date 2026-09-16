@@ -22,6 +22,7 @@ type Config struct {
 	Infisical InfisicalConfig        `json:"infisical"`
 	Require   map[string]Requirement `json:"require"`
 	Policy    Policy                 `json:"policy"`
+	Targets   map[string]Target      `json:"targets"` // deploy destinations (D-I.12)
 }
 
 // InfisicalConfig says where a repo's secrets live and which machine identity
@@ -32,7 +33,7 @@ type InfisicalConfig struct {
 	ProjectSlug string `json:"project-slug"` // informational; the API uses the id
 	Path        string `json:"path"`         // secret folder, e.g. /clog-mrmxf
 	Audience    string `json:"audience"`     // OIDC audience; defaults to Domain
-	// Env maps a clog environment (dev|stage|prod) to an Infisical env slug.
+	// Env maps a mode (dev|prod) to an Infisical env slug.
 	Env map[string]string `json:"env"`
 	// Identity maps platform (github|gitlab) → {dev-uuid, prod-uuid}.
 	Identity map[string]map[string]string `json:"identity"`
@@ -91,20 +92,20 @@ func (c InfisicalConfig) validate() error {
 	return nil
 }
 
-// infisicalEnv maps a clog environment to its Infisical env slug.
-func (c InfisicalConfig) infisicalEnv(clogEnv string) (string, error) {
-	slug := strings.TrimSpace(c.Env[clogEnv])
+// infisicalEnv maps a mode to its Infisical env slug.
+func (c InfisicalConfig) infisicalEnv(mode string) (string, error) {
+	slug := strings.TrimSpace(c.Env[mode])
 	if slug == "" {
-		return "", fmt.Errorf("ci.infisical.env.%s is not set: map clog env %q to an Infisical env slug (clog ci --config-help)", clogEnv, clogEnv)
+		return "", fmt.Errorf("ci.infisical.env.%s is not set: map mode %q to an Infisical env slug (clog ci --config-help)", mode, mode)
 	}
 	return slug, nil
 }
 
-// identityFor picks the machine identity for a platform and clog environment:
-// prod uses prod-uuid, everything else in CI uses dev-uuid.
-func (c InfisicalConfig) identityFor(platform Platform, clogEnv string) (key, uuid string, err error) {
+// identityFor picks the machine identity for a platform and mode: prod uses
+// prod-uuid, dev uses dev-uuid.
+func (c InfisicalConfig) identityFor(platform Platform, mode string) (key, uuid string, err error) {
 	key = "dev-uuid"
-	if clogEnv == EnvProd {
+	if mode == ModeProd {
 		key = "prod-uuid"
 	}
 	uuid = strings.TrimSpace(c.Identity[string(platform)][key])
