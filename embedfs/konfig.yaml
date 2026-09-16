@@ -78,7 +78,6 @@ check:
         ok:    clog BC stashLog -1 check -2 pre-build  -3 "origin tag" -I "Ok  tag-origin == tag-ref"
         catch: clog BC stashLog -1 check -2 pre-build -3 "origin tag" -W "    tag-origin != tag-ref"
       - finally: clog BC stashLog -1 check -2 pre-build -I "     hash-head    $(clog BC git hash head)"
-      - finally: clog BC stashLog -1 check -2 pre-build -I "   hash-origin    $(clog BC git hash origin)"
       - try: |
           # CI always checks out clean — skip tree checks to avoid false warnings
           [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
