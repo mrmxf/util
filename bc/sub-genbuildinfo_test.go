@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mrmxf/util/kfg"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -86,6 +87,23 @@ func TestGenBuildinfo(t *testing.T) {
 				_, err := runGen("--format", "yaml")
 				So(err, ShouldNotBeNil)
 			})
+		})
+	})
+}
+
+func TestFlowIdentity(t *testing.T) {
+	Convey("the flow banner identity comes from git and the mode, not releases.yaml", t, func() {
+		saved, savedRel := IsProduction, Releases
+		defer func() { IsProduction, Releases = saved, savedRel }()
+		Releases = func() []kfg.AppRelease { return nil } // no releases.yaml at all
+		inRepo(t, func(git func(...string)) {
+			IsProduction = func() bool { return false }
+			v, m := flowIdentity()
+			So(v, ShouldEqual, "v1.2.3")
+			So(m, ShouldEqual, "dev")
+			IsProduction = func() bool { return true }
+			_, m = flowIdentity()
+			So(m, ShouldEqual, "prod")
 		})
 	})
 }

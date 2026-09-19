@@ -9,18 +9,23 @@ Command help is given below. BC's goal is to allow flows like:
 
 clog BC flow --check "pre-build tools" --build "golang deploy"
 
-There must be a json/yaml file that track the releases you're trying to build: form:
+Versions and production come from git tags, not a file:
 
- # flow:"stage",  build:"dev"  = auto-add to staging server
- # flow:"main",   build:"prod" = to flag as a production release
- # golang projects MUST have tags must start with a "v", other project NO letter v
-- {version: "v0.10.0", date: 2025-10-02, flow: main, build: dev, note: refactor - kfg system}
+  release tag      vX.Y.Z (or X.Y.Z), nothing after it - v1.2.0-rc1 is not one
+  production       the newest release tag by date   clog BC git tag prod
+  build version    clog BC genBuildinfo --format version
+                   v1.2.3 on a release tag, else v1.2.3+dev.N.gSHA
+  run mode         clog ci mode (dev|prod) - a failed check aborts only in prod
+
+releases.yaml is optional history (a changelog): BC never decides from it.
+
+  - {version: "v1.2.3", date: 2026-09-19, build: prod, note: "what changed"}
 
 The .clog.yaml file has a number of optional elements:
 
 clog:
-  releases-path: "path/to/releases.yaml"   # see above for format
-	stash-path:     tmp/BcStash.yaml         # default place for remembering progress data
+  releases-path: "path/to/releases.yaml"   # history, see above
+  stash-path:     tmp/BcStash.yaml         # default place for remembering progress data
 
 Use 'clog bc <command> --help' for more information about specific commands.
 `

@@ -82,6 +82,8 @@ github.com/mrmxf/util/buildinfo v0.12.0 h1:+YsYxzl0k5TQjnbrvRLSCWCg2Ni4+AlyYSE29
 github.com/mrmxf/util/buildinfo v0.12.0/go.mod h1:V2hLEt0BJfn+ty4N4go+lJKaB7YLwR0BFXHJTS4yJL0=
 github.com/mrmxf/util/check v0.11.1 h1:ItkyK4f34m+g69bSI34UfHyqeEe/LOwtDDQsefHPvic=
 github.com/mrmxf/util/check v0.11.1/go.mod h1:eaLGJTgJl2zvp7zjdNUk/gM7ViqJCzXLfMGRLEwkFS8=
+github.com/mrmxf/util/ci v0.13.0 h1:08IVKr9BN/eR0Roa2lkEWeJTfQSHrXWc2bg2bZtSC48=
+github.com/mrmxf/util/ci v0.13.0/go.mod h1:Lsk2X6KyPCBj3j/GUDITT7vKH1ZYF7DevdzQWpu2oWE=
 github.com/mrmxf/util/crayon v0.11.0 h1:yCoclsOLA3DDWyZkUL3NriGF5nX789z4P0fc5tts19s=
 github.com/mrmxf/util/crayon v0.11.0/go.mod h1:RaQR6hbAuCXV+tjb25XK8WVpWGqScT84eTZ3pSq3tms=
 github.com/mrmxf/util/kfg v0.11.1 h1:w1irV8Nc6cZkt9Sjvoz5Vzr8vq9HSoMR52rVr59IPyM=

@@ -6,6 +6,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/mrmxf/util/buildinfo v0.12.0
 	github.com/mrmxf/util/check v0.11.1
+	github.com/mrmxf/util/ci v0.13.0
 	github.com/mrmxf/util/kfg v0.11.1
 	github.com/mrmxf/util/scripts v0.11.0
 	github.com/mrmxf/util/slogger v0.11.0

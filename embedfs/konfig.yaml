@@ -69,14 +69,9 @@ check:
   pre-build:
     blocks:
       - finally: clog BC stashLog -1 check -2 pre-build -I "        branch    $(clog BC git branch)"
-      - finally: clog BC stashLog -1 check -2 pre-build -I "       tag-ref    $(clog BC git tag ref)"
+      - finally: clog BC stashLog -1 check -2 pre-build -I "       version    $(clog BC genBuildinfo --format version)"
       - finally: clog BC stashLog -1 check -2 pre-build -I "      tag-prod    $(clog BC git tag prod)"
-      - finally: clog BC stashLog -1 check -2 pre-build -I "    tag-origin    $(clog BC git tag origin)"
-      - try: |
-          # tag sync check is meaningful in CI — don't skip
-          [[ "$(clog BC git tag origin)" == "$(clog BC git tag ref)" ]]
-        ok:    clog BC stashLog -1 check -2 pre-build  -3 "origin tag" -I "Ok  tag-origin == tag-ref"
-        catch: clog BC stashLog -1 check -2 pre-build -3 "origin tag" -W "    tag-origin != tag-ref"
+      - finally: clog BC stashLog -1 check -2 pre-build -I "          mode    $(clog ci mode)"
       - finally: clog BC stashLog -1 check -2 pre-build -I "     hash-head    $(clog BC git hash head)"
       - try: |
           # CI always checks out clean — skip tree checks to avoid false warnings
@@ -171,7 +166,7 @@ check:
         ok: clog BC stashLog -1 check -2 hugo -3 docker -I "docker ok"
         catch: |
           clog BC stashLog -1 check -2 hugo -3 docker -E "docker not on path"
-          clog BC is build prod && exit 1
+          [ "$(clog ci mode)" = prod ] && exit 1
 
       - name: theme replacements
         try: |
@@ -309,7 +304,7 @@ snippets:
     rm -rf kodata/*
 
     opt="$opt --buildDrafts --buildFuture --buildExpired"
-    clog BC is build prod  && opt=""
+    [ "$(clog ci mode)" = prod ] && opt=""
     clog BC stashLog -1 build -2 hugo -3 hugoBuild -I "$STEP.$(((++s))). build hugo $phase→${cF}kodata/$cC $opt"
     hugo build --minify --logLevel info $opt
     ((ERR+=$?))
@@ -326,26 +321,14 @@ snippets:
   #  artifacts appear in tmp/
   #  you may have to make a project copy of this function to make semver work
   bc-golang: |
+    # version stamp from git (clog BC genBuildinfo), not releases.yaml. prod mode
+    # refuses anything but a clean release tag, so a prod binary is a tag.
     fGoBuild(){
       local gofile=$(printf "%-30s" "$1"); shift
-      local tag="$1"; shift
       local goos="$1"; shift
       local goarch="$1"; shift
-      local hash="$1"; shift
-      local buildDate
-      local buildSuffix="$1"; shift
-      local buildAppName="$1"; shift
-      local buildAppTitle="$1"; shift
-      local linkerDataSemverPath="$1"; shift
-      
-      # get build type
-      build="$(clog BC releases build)"
-      # get ISO date
-      printf -v buildDate '%(%Y-%m-%d)T' -1
-      # remove spaces from App Title
-      buildAppTitle=$(echo "$buildAppTitle" | tr ' ' '_')
 
-        # set colors for printing logs
+      # set colors for printing logs
       local cos="$cLnx"
       [[ "$goos" == "darwin" ]] && cos=$cMac
       [[ "$goos" == "windows" ]] && cos=$cWin
@@ -366,37 +349,21 @@ snippets:
       printf -v tPlatform "for %s %s" "$cos$goos$cX/$car$goarch$cX" "$spaces"
       printf -v bPlatform "(built on %14s)" "$bOSV/$cpu"
 
-      # create linker data json:
-      ldi="{"
-      ldi="$ldi\"build\":\"$build\""
-      ldi="$ldi,\"tag\":\"$tag\""
-      ldi="$ldi,\"hash\":\"$hash\""
-      ldi="$ldi,\"date\":\"$buildDate\""
-      ldi="$ldi,\"suffix\":\"$buildSuffix\""
-      ldi="$ldi,\"name\":\"$buildAppName\""
-      ldi="$ldi,\"title\":\"$buildAppTitle\""
-      ldi="$ldi}"
-
-      #create linker data string
-      lds="-X $linkerDataSemverPath='$ldi'"
-
-      # prepare build message
       buildMsg="$cos$gofile$cX $tPlatform $bPlatform"
       clog BC stashLog -1 build -2 golang -3 fGoBuild -I "$buildMsg"
-      
-      # build with or without linker data depending on a supplied path
-      if [ -z "$linkerDataSemverPath" ]; then
-        GOOS="$goos" GOARCH="$goarch" go build -o $gofile
-        err=$?
-      else
-        GOOS="$goos" GOARCH="$goarch" go build -o $gofile -ldflags "$lds"
-        err=$?
-      fi
 
+      GOOS="$goos" GOARCH="$goarch" go build -o $gofile -ldflags "$lds"
+      err=$?
       if [ $err -gt 0 ]; then
-        [ -n "$linkerDataSemverPath" ] &&  clog BC stashLog -1 build -2 golang -3 fGoBuild -E "Linker data string was:$cC -ldflags \"$lds\""
+        clog BC stashLog -1 build -2 golang -3 fGoBuild -E "Linker data string was:$cC -ldflags \"$lds\""
         clog BC stashLog -1 build -2 golang -3 fGoBuild -E "$buildMsg ...  build failed"
         return $err
+      fi
+      # Go silently ignores -X for a symbol the binary does not contain, which
+      # is how every build shipped "-dev" from 2026-06 to 2026-09. Prove it landed.
+      if ! go tool nm $gofile 2>/dev/null | grep -q " $linkerPath\$"; then
+        clog BC stashLog -1 build -2 golang -3 fGoBuild -E "$buildMsg ... $linkerPath is not in the binary - the version stamp would be lost"
+        return 1
       fi
       size="$(du --apparent-size --block-size=M $gofile)"
       clog BC stashLog -1 build -2 golang -3 fGoBuild -I "$buildMsg ... $size"
@@ -406,25 +373,25 @@ snippets:
     [ -z "$TITLE" ]&&clog BC stashLog -1 build -2 golang -3 gobuild -E "\$TITLE must be set to the target's printable name" && exit 1
     ERR=0
 
-    clog BC stashLog -1 build -2 golang -3 start -I "⚒️  golang build $EXE $phase→$cF tmp/$EXE-cpu-os"
+    mode="$(clog ci mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
+    linkerPath="$(clog BC linkerpath)"
+    lds="$(clog BC genBuildinfo "$mode" --format ldflags --name "$EXE" --title "$TITLE")" || {
+      clog BC stashLog -1 build -2 golang -3 gobuild -E "❌ no build info for a $mode build - see the error above"
+      exit 1; }
+    version="$(clog BC genBuildinfo "$mode" --format version)"
+
+    clog BC stashLog -1 build -2 golang -3 start -I "⚒️  golang build $EXE $version ($mode) →$cF tmp/$EXE-cpu-os"
 
     # ensure tmp folder exists
     mkdir -p tmp
-    # todo for a production build use clog BC git hash prod
-    tag="$(   clog BC git tag ref)"        # target tag
-    branch="$(clog BC git branch)"         # current branch
-    hash="$(  clog BC git hash head)"      # use the head hash as the build hash
-    suffix="$(clog BC git suffix)"         # use the branch name as the suffix
     app="$EXE"                             # command you type to run the app
-    title="$TITLE"                         # title of the software
-    linkerPath="$(clog BC linkerpath)"     # go tool objdump -S $EXE|grep /semver.SemVerInfo
 
-      fGoBuild tmp/$app-amd-lnx     "$tag" linux   amd64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
-    # fGoBuild tmp/$app-amd-win.exe "$tag" windows amd64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
-      fGoBuild tmp/$app-amd-mac     "$tag" darwin  amd64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
-      fGoBuild tmp/$app-arm-lnx     "$tag" linux   arm64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
-    # fGoBuild tmp/$app-arm-win.exe "$tag" windows arm64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
-      fGoBuild tmp/$app-arm-mac     "$tag" darwin  arm64 $hash "$suffix" "$app" "$title" "$linkerPath"; ((ERR+=$?))
+      fGoBuild tmp/$app-amd-lnx     linux   amd64; ((ERR+=$?))
+    # fGoBuild tmp/$app-amd-win.exe windows amd64; ((ERR+=$?))
+      fGoBuild tmp/$app-amd-mac     darwin  amd64; ((ERR+=$?))
+      fGoBuild tmp/$app-arm-lnx     linux   arm64; ((ERR+=$?))
+    # fGoBuild tmp/$app-arm-win.exe windows arm64; ((ERR+=$?))
+      fGoBuild tmp/$app-arm-mac     darwin  arm64; ((ERR+=$?))
 
     if [ $ERR -gt 0 ]; then
       clog BC stashLog -1 build -2 golang -3 status -E "❌ golang build failed with $ERR errors"
@@ -437,19 +404,11 @@ snippets:
     eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
 
     ERR=0
-    if clog BC is build prod; then
-      devTAG=""
-    else
-      devTAG="-dev"
-    fi
-    if clog BC is flow main; then
-      stageTAG=""
-    else
-      stageTAG="-$(clog BC releases flow)"
-    fi
-    
-    tag1="$(clog BC git tag ref)$stageTAG$devTAG" # 1.2.3 | 1.2.3-stage | 1.2.3-stage-dev
-    tag2="latest$stageTAG$devTAG"                 # latest | latest-stage | latest-dev | latest-stage-dev
+    # image tags from git + mode (releases.yaml is history): prod builds a clean
+    # release tag -> v1.2.3 + latest; dev -> v1.2.3-dev.3.gabc1234 + latest-dev
+    mode="$(clog ci mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
+    tag1="$(clog BC genBuildinfo "$mode" --format docker-tag)" || exit 1
+    tag2="latest"; [ "$mode" = prod ] || tag2="latest-dev"
 
     clog BC stashLog -1 build -2 ko -3 start -I "⚒️  build ko →$cU hub.docker.com/$DOCKER_NS/$PROJECT:$cW$tag1$cX and$cW $tag2$cX"
 
@@ -576,10 +535,9 @@ snippets:
       head: git tag --points-at HEAD
       latest: git tag --sort=committerdate | tail -1
       origin: git ls-remote --tags --sort=-v:refname origin | head -1 | grep -oE 'v{0,1}[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-0]+){0,1}'
-      # this is the default snippet to return the project's target tag
-      # override in your project' clog.yaml
-      # golang requires a 'v':
-      ref: yq -r '.[0].version' "$(clog BC releases yaml)"
+      # the build's version from git (releases.yaml is history):
+      # v1.2.3 on a release tag, else v1.2.3+dev.N.gSHA
+      ref: clog BC genBuildinfo --format version
       tidy: 'echo "try:  clog BC git tag tidy"'
     # --- git tree snippets:  clog git tree <snippet> ------------------------------------------------------------------
     tree:

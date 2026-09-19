@@ -6,6 +6,8 @@ package bc
 
 import (
 	"fmt"
+	"github.com/mrmxf/util/buildinfo"
+	"github.com/mrmxf/util/ci"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -60,8 +62,7 @@ Exit codes:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get check and build steps from flags or environment
 		chkSteps, buildSteps, reset := flowCliParams(cmd)
-		releaseFlow := Releases()[0].Flow
-		releaseBuild := Releases()[0].Build
+		version, mode := flowIdentity()
 
 		if reset {
 			ResetStash()
@@ -81,7 +82,7 @@ Exit codes:
 		}
 
 		// Log start message
-		msg := fmt.Sprintf("🤖 %s %s%v %s%v release(flow:%s, build:%s)", summaryFlow, checkFlow, chkSteps, buildFlow, buildSteps, releaseFlow, releaseBuild)
+		msg := fmt.Sprintf("🤖 %s %s%v %s%v %s (%s)", summaryFlow, checkFlow, chkSteps, buildFlow, buildSteps, version, mode)
 		slog.Info(msg)
 		AppendStash(summaryFlow, checkFlow, startStep, LvlInfo, msg)
 
@@ -110,8 +111,8 @@ Exit codes:
 			AppendStash(summaryFlow, checkFlow, endStep, LvlError, msg)
 			return fmt.Errorf("%s", msg)
 		case errorCount > 0:
-			msg = fmt.Sprintf("🤖 %s %s(%v) ❌ %d check errors - continuing flow(%s) build(%s)", summaryFlow, checkFlow, endStep, errorCount,
-				Releases()[0].Flow, Releases()[0].Build)
+			msg = fmt.Sprintf("🤖 %s %s(%v) ❌ %d check errors - continuing the %s build of %s", summaryFlow, checkFlow, endStep, errorCount,
+				mode, version)
 			slog.Warn(msg)
 			AppendStash(summaryFlow, checkFlow, endStep, LvlError, msg)
 		}
@@ -147,7 +148,7 @@ Exit codes:
 		}
 
 		// Log termination message
-		msg = fmt.Sprintf("🤖 %s %s(%v) release(flow:%s, build:%s)", summaryFlow, endPhase, statusStep, releaseFlow, releaseBuild)
+		msg = fmt.Sprintf("🤖 %s %s(%v) %s (%s)", summaryFlow, endPhase, statusStep, version, mode)
 		AppendStash(summaryFlow, endPhase, statusStep, LvlInfo, msg)
 
 		// Determine final status
@@ -200,18 +201,27 @@ func getEnvTokens(envVar string) []string {
 	return strings.Fields(value)
 }
 
-// flowIsProduction runs "clog BC is build prod" to determine if in production mode
-// IsProduction reports whether THIS RUN is a production one, which is what
-// makes a failed check abort the flow. The default answers from releases.yaml
-// (the top entry's build), but a host app can repoint it: clog-mrmxf sets it to
-// `clog ci mode`, so a dev build of a commit that carries a production release
-// is not aborted by a check warning (D-I.12: the mode decides, not the file).
+// IsProduction reports whether THIS RUN is a production one (clog ci mode),
+// which is what makes a failed check abort the flow. releases.yaml is history
+// and is not read. A host app may repoint it; it no longer needs to.
 var IsProduction = func() bool {
-	releases := Releases()
-	if len(releases) == 0 {
-		return false
+	d, err := ci.Decide(ci.DefaultEnv())
+	return err == nil && d.Mode == ci.ModeProd
+}
+
+// flowIdentity is what the flow banner reports: the version from git
+// (v1.2.3, v1.2.3+dev.3.gabc1234) and the run's mode. It works in a repo with
+// no releases.yaml at all.
+func flowIdentity() (version, mode string) {
+	version = "unversioned"
+	if g, err := buildinfo.ReadGitState("."); err == nil {
+		version = g.Version()
 	}
-	return releases[0].Build == "prod"
+	mode = "dev"
+	if flowIsProduction() {
+		mode = "prod"
+	}
+	return version, mode
 }
 
 func flowIsProduction() bool { return IsProduction() }
