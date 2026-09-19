@@ -10,39 +10,26 @@ package buildinfo
 import (
 	"reflect"
 	"runtime"
-	"runtime/debug"
 	"strings"
 )
 
-// LinkerPath returns the linker path string for the SemVerJSON variable
-// This path is used with go build -ldflags to set version information at compile time
-// Example: go build -ldflags "-X github.com/mrmxf/util/buildinfo.SemVerJSON='...'"
+// linkerMarker exists only so reflection can report this package's import
+// path, which is where SemVerJSON lives.
+type linkerMarker struct{}
+
+// LinkerPath returns the -X path of SemVerJSON for go build -ldflags:
 //
-// This function dynamically discovers the module path at runtime to construct
-// the correct linker path, equivalent to: go tool objdump -S <binary> | grep 'semver.SemVerJSON'
+//	go build -ldflags "-X github.com/mrmxf/util/buildinfo.SemVerJSON='...'"
+//
+// It is the path of the variable this package actually reads, whichever app
+// imports it. (Before 2026-09 it returned <main module>/semver.SemVerJSON, a
+// package clog no longer links, and Go ignores -X for a missing symbol - so
+// every build silently kept the "-dev" placeholder.)
 func LinkerPath() string {
-	// Try to get the module path dynamically using runtime/debug
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Path != "" {
-		return info.Main.Path + "/semver.SemVerJSON"
+	if pkg := reflect.TypeOf(linkerMarker{}).PkgPath(); pkg != "" {
+		return pkg + ".SemVerJSON"
 	}
-
-	// Fallback: Use reflection to get the package path
-	// Get the package path of the SemVerJSON variable
-	pkgPath := reflect.TypeOf(SemVerJSON).PkgPath()
-	if pkgPath == "" {
-		// Get package path from this function's location
-		pkgPath = getPackagePath()
-	}
-
-	// Extract module path from package path
-	// For "github.com/mrmxf/util/buildinfo", we want "github.com/mrmxf/clog-mrmxf"
-	if idx := strings.LastIndex(pkgPath, "/"); idx != -1 {
-		modulePath := pkgPath[:idx]
-		return modulePath + "/semver.SemVerJSON"
-	}
-
-	// Final fallback to hardcoded path
-	return "github.com/mrmxf/util/buildinfo.SemVerJSON"
+	return getPackagePath() + ".SemVerJSON"
 }
 
 // getPackagePath uses reflection to get the current package path

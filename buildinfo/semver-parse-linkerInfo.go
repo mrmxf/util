@@ -73,8 +73,9 @@ func ParseLinkerJSON(semVerJSON string) (VersionInfo, bool, error) {
 		}
 	}
 
-	// Handle suffix for dev builds
-	if !isProd {
+	// Handle suffix for dev builds. A git-derived dev version (v1.2.3+dev.3.gabc)
+	// already says it is dev, so it gets no -dev suffix on top.
+	if !isProd && !strings.Contains(data.Tag, "+") {
 		if len(data.Suffix) > 0 {
 			data.Suffix = fmt.Sprintf("dev-%s", data.Suffix)
 		} else {
