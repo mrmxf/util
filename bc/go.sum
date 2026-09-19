@@ -78,8 +78,8 @@ github.com/mitchellh/copystructure v1.2.0 h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa1
 github.com/mitchellh/copystructure v1.2.0/go.mod h1:qLl+cE2AmVv+CoeAwDPye/v+N2HKCj9FbZEVFJRxO9s=
 github.com/mitchellh/reflectwalk v1.0.2 h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zxSIeXaQ=
 github.com/mitchellh/reflectwalk v1.0.2/go.mod h1:mSTlrgnPZtwu0c4WaC2kGObEpuNDbx0jmZXqmk4esnw=
-github.com/mrmxf/util/buildinfo v0.11.0 h1:FG69gwJyAEsWioJTBry5RnKDoJKyCxhJ4Tsno9eECT0=
-github.com/mrmxf/util/buildinfo v0.11.0/go.mod h1:HZCRRms6Yp9gVbS5Ad/9j/UcIy9o44sho3YSxS11Th0=
+github.com/mrmxf/util/buildinfo v0.12.0 h1:+YsYxzl0k5TQjnbrvRLSCWCg2Ni4+AlyYSE29jJvSEE=
+github.com/mrmxf/util/buildinfo v0.12.0/go.mod h1:V2hLEt0BJfn+ty4N4go+lJKaB7YLwR0BFXHJTS4yJL0=
 github.com/mrmxf/util/check v0.11.1 h1:ItkyK4f34m+g69bSI34UfHyqeEe/LOwtDDQsefHPvic=
 github.com/mrmxf/util/check v0.11.1/go.mod h1:eaLGJTgJl2zvp7zjdNUk/gM7ViqJCzXLfMGRLEwkFS8=
 github.com/mrmxf/util/crayon v0.11.0 h1:yCoclsOLA3DDWyZkUL3NriGF5nX789z4P0fc5tts19s=

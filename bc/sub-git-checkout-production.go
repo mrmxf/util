@@ -9,65 +9,43 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/mrmxf/util/kfg"
 	"github.com/spf13/cobra"
 )
 
-// productionCmd provides BC (build-control) functionality to checkout the latest production release.
-// Filters AppRelease data where Flow=="main" and Build=="prod" and checks out the latest version.
 var productionCmd = &cobra.Command{
 	Use:           "production",
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	Short:         "BC (build-control) Checkout latest production release",
-	Long: `BC (build-control) checks out the latest production release tag.
-This command:
-- Loads AppRelease data from kfg configuration
-- Filters for releases where Flow="main" and Build="prod"
-- Finds the latest (most recent) production release
-- Checks out that version tag using CheckoutTag()
+	Short:         "BC (build-control) Checkout the production release (newest vX.Y.Z tag)",
+	Long: `BC (build-control) checks out the production release: the newest release tag
+by date (see clog BC git tag prod). --branch origin/main only considers tags
+reachable from that branch - what a scheduled production rebuild wants.
 
-Use --dryrun flag to see what git command would be executed without actually running it.`,
+The checkout is detached (a tag is not a branch). Use --dryrun to print the git
+command instead of running it.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Use the global dryrun flag
-		dryrun := DryRun()
-
-		// Ensure kfg configuration and releases are loaded
-		if kfg.Raw == nil {
-			slog.Error("configuration not loaded. Make sure kfg.Konfigure() has been called.")
-			os.Exit(1)
-		}
-
-		if len(Releases()) == 0 {
-			slog.Error("no release data available. Make sure kfg.LoadReleases() has been called.")
-			os.Exit(1)
-		}
-
 		version, err := GitTagProduction()
 		if err != nil {
 			slog.Error("Cannot get production tag", "err", err)
 			os.Exit(1)
 		}
-
-		if dryrun {
-			// Print the equivalent git command that would be executed
+		if err := safeRef(version); err != nil {
+			slog.Error("refusing to check out", "err", err)
+			os.Exit(1)
+		}
+		if DryRun() {
 			fmt.Printf("git checkout %s\n", version)
 			return
 		}
-
-		// Perform the actual checkout using CheckoutTag
 		slog.Info("Checking out production release: " + version)
-		err = CheckoutTag(version)
-		if err != nil {
+		if err := gitNetRun("-c", "advice.detachedHead=false", "checkout", "-q", version, "--"); err != nil {
 			slog.Error("Error checking out tag", "version", version, "error", err)
 			os.Exit(1)
 		}
-
-		slog.Info("Successfully checked out production release %" + version)
 	},
 }
 
 func init() {
-	// Add production command to the checkout command
+	productionCmd.Flags().StringVar(&prodBranch, "branch", "", "only tags reachable from this branch, e.g. origin/main")
 	checkoutCmd.AddCommand(productionCmd)
 }

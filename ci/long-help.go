@@ -37,7 +37,7 @@ build and the deploy:
 
   dev    a laptop, a pull/merge request, a branch push, a manual run
   prod   a tag push or a scheduled run that ci.policy.deploy.prod accepts
-         (tag glob + releases.yaml build: prod)
+         (tag glob + a vX.Y.Z release tag; v1.2.0-rc1 is dev)
 
 The mode picks the Infisical environment and identity, and which block of each
 deploy target applies. Per-mode BUILD settings live in ci.modes:
@@ -139,14 +139,17 @@ Reads ci.policy from .clog.yaml:
       build: [branch, tag, dispatch]         # events that build; missing list = build always
       deploy:                                # keyed by mode (see clog ci mode): dev, prod
         dev:  {branches: [main, rc, dev]}
-        prod: {tags: ["v*"], releases-yaml: prod, schedule: false}
+        prod: {tags: ["v*"], schedule: false}
 
 Events: branch (push), tag (tag push), dispatch (manual/api), schedule, pr, local.
 A run deploys when the rule for its mode matches:
   branch, dispatch, local  ref matches branches      (globs; * also matches "/")
   tag                      ref matches tags
   schedule                 schedule: true
-and, if releases-yaml is set, the top releases.yaml entry has that build value.
+A prod tag must also be a release tag: vX.Y.Z or X.Y.Z, nothing after it.
+releases.yaml is history and is not read; releases-yaml: is ignored with a warning.
+A scheduled prod run should build the newest release tag on the default branch:
+  clog BC git checkout production --branch origin/main
 
 Hard rules: pull/merge requests never deploy; no rule for the mode = no deploy;
 no ci.policy.build = everything builds; a run that does not build does not deploy.`

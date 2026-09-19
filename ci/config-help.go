@@ -37,7 +37,7 @@ MODE -> INFISICAL (clog ci mode decides; see clog ci mode --help)
   mode  when                                        infisical env  identity   login
   dev   laptop, PR, branch push, dispatch           dev            dev-uuid   OIDC (laptop: user login)
   prod  tag push / schedule that ci.policy.deploy.  prod           prod-uuid  OIDC
-        prod accepts (tag glob + releases.yaml prod)
+        prod accepts (tag glob + a vX.Y.Z release tag)
   Build mode and deploy mode are always the same. A PR gets NO secrets, ever.
   Force a mode: CLOG_MODE=prod (CLOG_ENV still read with a warning; =stage is an error).
 
@@ -50,7 +50,7 @@ MODE -> INFISICAL (clog ci mode decides; see clog ci mode --help)
       build: [branch, tag, dispatch]         # branch|tag|dispatch|schedule|pr|local
       deploy:                                # keyed by MODE; PRs never deploy
         dev:  {branches: [main, rc, dev]}    # globs, * also matches "/"
-        prod: {tags: ["v*"], releases-yaml: prod}    # + schedule: true to let scheduled runs deploy
+        prod: {tags: ["v*"]}                       # + schedule: true to let scheduled runs deploy
     modes:                                   # per-mode BUILD settings: clog ci mode get <key>
       dev:  {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts"}
       prod: {base-url: "https://example.com/"}

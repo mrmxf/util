@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/mrmxf/util/kfg"
+	"github.com/mrmxf/util/buildinfo"
 	"github.com/spf13/cobra"
 )
 
@@ -38,13 +39,13 @@ type Policy struct {
 }
 
 // DeployRule allows a deploy in one mode. A run deploys when its ref
-// matches Branches or Tags (or it is a scheduled run and Schedule is set), and
-// the top releases.yaml entry's build equals ReleasesYAML when that is set.
+// matches Branches or Tags, or it is a scheduled run and Schedule is set.
+// ReleasesYAML is deprecated and ignored: releases.yaml is history.
 type DeployRule struct {
 	Branches     stringList `json:"branches"`      // globs, * matches anything incl "/"
 	Tags         stringList `json:"tags"`          // globs
 	Schedule     bool       `json:"schedule"`      // scheduled runs may deploy
-	ReleasesYAML string     `json:"releases-yaml"` // e.g. prod: top releases.yaml build must be prod
+	ReleasesYAML string     `json:"releases-yaml"` // DEPRECATED, ignored (warns): prod comes from the release tag
 }
 
 // Decision is what ci.policy says about the current run. Build mode and deploy
@@ -63,22 +64,17 @@ type Decision struct {
 	Targets      []string `json:"targets"` // deploy targets for this mode
 }
 
-// ReleaseBuild is an overridable hook returning the top releases.yaml entry's
-// build value (dev|prod), or "" when releases are not loaded.
-var ReleaseBuild = func() string {
-	if r := kfg.CurrentRelease(); r != nil {
-		return r.Build
-	}
-	return ""
-}
-
-// ReleaseVersion is an overridable hook returning the top releases.yaml
-// version (e.g. v0.11.4), used by the {tag} / {version} target tokens.
+// ReleaseVersion is an overridable hook returning this checkout's version from
+// git, used by the {tag} / {version} target tokens: the release tag at HEAD
+// (v0.11.12), else the dev version (v0.11.12+dev.3.g34103be) - never the last
+// release, so a dev deploy cannot overwrite a release's files. releases.yaml is
+// history and is not read.
 var ReleaseVersion = func() string {
-	if r := kfg.CurrentRelease(); r != nil {
-		return r.Version
+	g, err := buildinfo.ReadGitState(".")
+	if err != nil {
+		return ""
 	}
-	return ""
+	return g.Version()
 }
 
 // stringList accepts either a YAML string or a list of strings.
@@ -121,6 +117,7 @@ func Decide(env Env) (Decision, error) {
 		return Decision{}, err
 	}
 	pol := cfg.Policy
+	warnDeprecated(pol)
 
 	d := Decision{Event: eventOf(r), Ref: refName(r), Actor: r.Actor, IsTag: r.IsTag}
 	forced, err := modeOverride(env)
@@ -159,7 +156,8 @@ func Decide(env Env) (Decision, error) {
 }
 
 // decideMode picks dev or prod (D-I.12): a tag push or a scheduled run is prod
-// when ci.policy.deploy.prod would accept it (tag glob + releases.yaml build);
+// when ci.policy.deploy.prod would accept it (tag glob + a vX.Y.Z release tag,
+// or schedule: true);
 // everything else - branches, dispatch, pull requests, laptops - is dev.
 func decideMode(pol Policy, d Decision, forced string) (string, string) {
 	if forced != "" {
@@ -190,20 +188,15 @@ func prodRuleAccepts(pol Policy, d Decision) (bool, string) {
 		if glob == "" {
 			return false, fmt.Sprintf("tag %s matches no ci.policy.deploy.prod.tags %v", d.Ref, []string(rule.Tags))
 		}
-		if want := rule.ReleasesYAML; want != "" {
-			if got := ReleaseBuild(); got != want {
-				return false, fmt.Sprintf("tag %s matches %q but releases.yaml build is %q, want %q", d.Ref, glob, got, want)
-			}
+		if !buildinfo.IsReleaseTag(d.Ref) {
+			return false, fmt.Sprintf("tag %s matches %q but is not a release tag (vX.Y.Z)", d.Ref, glob)
 		}
-		return true, fmt.Sprintf("tag %s matches %q and releases.yaml build is %s", d.Ref, glob, ReleaseBuild())
+		return true, fmt.Sprintf("tag %s matches %q and is a release tag", d.Ref, glob)
 	case EventSchedule:
 		if !rule.Schedule {
 			return false, "scheduled runs are not allowed by ci.policy.deploy.prod (schedule: true)"
 		}
-		if want := rule.ReleasesYAML; want != "" && ReleaseBuild() != want {
-			return false, fmt.Sprintf("scheduled run, but releases.yaml build is %q, want %q", ReleaseBuild(), want)
-		}
-		return true, "scheduled production rebuild"
+		return true, "scheduled production rebuild (of the newest release tag on the default branch)"
 	default:
 		return false, string(d.Event) + " events never reach prod mode"
 	}
@@ -237,12 +230,6 @@ func decideDeploy(pol Policy, d Decision) (bool, string) {
 		return false, fmt.Sprintf("%s %q is not allowed by ci.policy.deploy.%s", d.Event, d.Ref, d.Mode)
 	}
 
-	if want := rule.ReleasesYAML; want != "" {
-		if got := ReleaseBuild(); got != want {
-			return false, fmt.Sprintf("%s, but releases.yaml build is %q, want %q", matched, got, want)
-		}
-		matched += fmt.Sprintf(" and releases.yaml build is %s", want)
-	}
 	return true, fmt.Sprintf("%s → deploy %s", matched, d.Mode)
 }
 
@@ -429,5 +416,15 @@ func writeDecision(w io.Writer, d Decision, format string) error {
 		return err
 	default:
 		return fmt.Errorf("unknown --format %q (want json or env)", format)
+	}
+}
+
+// warnDeprecated flags ci.policy keys that no longer do anything.
+func warnDeprecated(pol Policy) {
+	for mode, rule := range pol.Deploy {
+		if rule.ReleasesYAML != "" {
+			slog.Warn("ignored: releases.yaml is history - prod comes from the release tag (vX.Y.Z); remove the key",
+				"key", "ci.policy.deploy."+mode+".releases-yaml")
+		}
 	}
 }

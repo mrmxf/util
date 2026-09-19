@@ -108,11 +108,11 @@ func TestLinkerPathOutput(t *testing.T) {
 				So(output, ShouldNotBeEmpty)
 			})
 
-			Convey("It should contain expected path elements", func() {
-				expectedElements := []string{"semver", "SemVerJSON"}
-				for _, elem := range expectedElements {
-					So(output, ShouldContainSubstring, elem)
-				}
+			// The -X target must be the variable the binary reads. The old answer,
+			// <module>/semver.SemVerJSON, named a package clog no longer links, so
+			// Go ignored -X and every build kept the "-dev" placeholder.
+			Convey("It should be the util/buildinfo variable the binary reads", func() {
+				So(strings.TrimSpace(output), ShouldEqual, "github.com/mrmxf/util/buildinfo.SemVerJSON")
 			})
 
 			// Reset command

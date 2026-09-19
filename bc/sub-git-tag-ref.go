@@ -9,30 +9,34 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/mrmxf/util/buildinfo"
 	"github.com/spf13/cobra"
 )
 
-// GitTagRef returns the current version reference from releases
-// Note that it is the responsibility of the manager of releases.yaml to add or remove a 'v' prefix
+// GitTagRef returns the release tag at HEAD, else the nearest one before it.
 func GitTagRef() string {
-	if len(Releases()) == 0 {
+	g, err := buildinfo.ReadGitState(".")
+	if err != nil {
+		slog.Debug("cannot read git state", "err", err)
 		return ""
 	}
-
-	return Releases()[0].Version
+	return g.Nearest
 }
 
-// refCmd prints the current version number in releases.yaml
+// refCmd prints the release tag this checkout builds from (git, not releases.yaml)
 var refCmd = &cobra.Command{
 	Use:           "ref",
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	Short:         "Print the current version reference",
-	Long:          `Print the current version reference from releases, with 'v' prefix if go.mod exists.`,
+	Short:         "Print the release tag at HEAD, else the nearest one before it",
+	Long: `Print the release tag (vX.Y.Z) this checkout is built from: the one at HEAD,
+else the newest one reachable from HEAD. It comes from git; releases.yaml is
+history. For the full build version (v1.2.3+dev.3.gabc1234) use
+clog BC genBuildinfo --format version.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		version := GitTagRef()
 		if version == "" {
-			slog.Error("no release data available")
+			slog.Error("no release tag (vX.Y.Z) reachable from HEAD")
 			os.Exit(1)
 		}
 

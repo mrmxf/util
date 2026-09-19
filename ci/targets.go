@@ -120,8 +120,8 @@ func TargetGet(env Env, cfg Config, mode, name, key string, required bool) (stri
 
 // expandTokens replaces {tag} {version} {sha} {mode} in target data.
 //
-//	{version}  top releases.yaml version without a leading v   0.11.4
-//	{tag}      the same with the v                             v0.11.4
+//	{tag}      release tag at HEAD, else the dev version       v0.11.4 | v0.11.4+dev.3.gabc1234
+//	{version}  the same without a leading v                    0.11.4
 //	{sha}      commit being built
 func expandTokens(s string, env Env, mode string) string {
 	if !strings.Contains(s, "{") {
