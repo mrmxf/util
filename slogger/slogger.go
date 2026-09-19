@@ -38,6 +38,7 @@ const (
     StyleJob
     StyleNats
     StylePrettyWithDbgTmp // PrettyHandler to stderr + JSONHandler to /tmp/clog-YYYY-MM-DD.log
+    StyleCiWithDbgTmp     // PrettyWithDbgTmp with no console timestamp (CI runners stamp lines)
 )
 
 // add a string function to Sprintf("%s") our new type
@@ -57,6 +58,8 @@ func (s SlogStyle) String() string {
         return "   nats"
     case StylePrettyWithDbgTmp:
         return "dbgtmp"
+    case StyleCiWithDbgTmp:
+        return "cidbgtmp"
     }
     return "unknown"
 }
@@ -76,7 +79,9 @@ var logCloser io.Closer
 //	defer slogger.CloseLogger()
 func CloseLogger() error {
     if logCloser != nil {
-        return logCloser.Close()
+        c := logCloser
+        logCloser = nil
+        return c.Close()
     }
     return nil
 }
@@ -94,6 +99,8 @@ func SetLogger(level slog.Level, style SlogStyle) {
         UseJobLogger(level)
     case StylePrettyWithDbgTmp:
         UsePrettyWithDbgTmpLogger(level)
+    case StyleCiWithDbgTmp:
+        UseCiWithDbgTmpLogger(level)
     default:
         // there is no default Tee logger as it needs a file path
         SetLogger(level, StylePretty)
@@ -106,8 +113,8 @@ func GetLogLevel() (logLevel slog.Level, logLevelFile slog.Level) {
 }
 
 func init() {
-    // uncomment this line to see init order
-    SetLogger(defaultLogLevel, defaultLogStyle)
+    // PrettyWithDbgTmp, or CiWithDbgTmp in CI, or $CLOG_LOG_FORCE_STYLE
+    UseDefaultLogger(defaultLogLevel)
 
     // trace init order for sanity
     _, file, _, _ := runtime.Caller(0)

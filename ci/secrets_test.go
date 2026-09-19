@@ -355,6 +355,23 @@ func TestRequire(t *testing.T) {
 		}
 	})
 
+	t.Run("a verb that is not a clog command gets no invented command", func(t *testing.T) {
+		custom := testConfig("https://example")
+		custom.Require["deploy-form"] = Requirement{Env: []string{"MAILTRAP_API_TOKEN"}}
+		withConfig(t, custom, nil)
+		captureLogs(t)
+		err := Require(local(map[string]string{}), "deploy-form")
+		if err == nil || !strings.Contains(err.Error(), "MAILTRAP_API_TOKEN") {
+			t.Fatalf("want MAILTRAP_API_TOKEN missing, got %v", err)
+		}
+		if strings.Contains(err.Error(), "clog deploy-form") {
+			t.Errorf("hint must not suggest a command that does not exist: %v", err)
+		}
+		if !strings.Contains(err.Error(), "clog ci run --") || !strings.Contains(err.Error(), "Infisical") {
+			t.Errorf("hint should name clog ci run and where the secrets come from: %v", err)
+		}
+	})
+
 	t.Run("inside clog ci run points at Infisical", func(t *testing.T) {
 		withConfig(t, cfg, map[string]any{"ci.targets.bucket.dev.bucket": "b"})
 		captureLogs(t)

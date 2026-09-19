@@ -22,7 +22,7 @@ Sub-commands:
   should    exit 0/1: does ci.policy allow build | deploy for this run?
   get       print a non-secret config value (ci.artifact, ci.title, ...)
 
-See 'clog ci resolve --help' and 'clog ci env --help' for details.
+See 'clog ci resolve --help' and 'clog ci mode --help' for details.
 Setting up CI secrets (Infisical OIDC, identities, .clog.yaml keys): clog ci --config-help`
 
 const modeHelp = `ci mode - dev or prod? and what does that mean here?
@@ -89,8 +89,8 @@ Where the secrets come from (config: ci.infisical in .clog.yaml):
   laptop          your  infisical login  session
   pull request    none - the command runs without secrets
 
-The clog environment (clog ci env: dev|stage|prod) picks the Infisical env via
-ci.infisical.env and the identity: prod uses prod-uuid, dev and stage use dev-uuid.
+The mode (clog ci mode: dev|prod) picks the Infisical env via ci.infisical.env
+and the identity: prod uses prod-uuid, dev uses dev-uuid.
 
 Secrets are added to the command's environment only (not to $GITHUB_ENV), each
 value is registered with ::add-mask:: on GitHub, and only names are logged.
@@ -124,11 +124,12 @@ chiddingfoldbonfire re-runs under infisical:
 
 const policyHelp = `ci policy / ci should - does this run build? does it deploy?
 
-  clog ci policy                     JSON: env, event, ref, build, deploy + reasons
-  clog ci policy --format env        clog_env= do_build= do_deploy=  (for $GITHUB_ENV)
+  clog ci policy                     JSON: mode, event, ref, build, deploy, targets + reasons
+  clog ci policy --format env        build_mode= deploy_mode= do_build= do_deploy= deploy_targets=
+                                     (for $GITHUB_ENV / a GitLab dotenv report)
   clog ci should deploy && clog deploy
-  CLOG_ENV=stage clog ci policy      laptop preview: judged as a push of the current branch
-  CLOG_ENV=prod  clog ci policy      laptop on a tag: judged as a push of that tag
+  CLOG_MODE=dev  clog ci policy      laptop preview: judged as a push of the current branch
+  CLOG_MODE=prod clog ci policy      laptop on a tag: judged as a push of that tag
 
 Reads ci.policy from .clog.yaml:
 
@@ -136,18 +137,18 @@ Reads ci.policy from .clog.yaml:
     policy:
       actors: [mrmxf]                        # optional: only these accounts build/deploy in CI
       build: [branch, tag, dispatch]         # events that build; missing list = build always
-      deploy:                                # per clog env (see clog ci env): stage, prod
-        stage: {branches: [main, rc, dev]}
-        prod:  {tags: ["v*"], releases-yaml: prod, schedule: false}
+      deploy:                                # keyed by mode (see clog ci mode): dev, prod
+        dev:  {branches: [main, rc, dev]}
+        prod: {tags: ["v*"], releases-yaml: prod, schedule: false}
 
 Events: branch (push), tag (tag push), dispatch (manual/api), schedule, pr, local.
-A run deploys when the rule for its clog env matches:
+A run deploys when the rule for its mode matches:
   branch, dispatch, local  ref matches branches      (globs; * also matches "/")
   tag                      ref matches tags
   schedule                 schedule: true
 and, if releases-yaml is set, the top releases.yaml entry has that build value.
 
-Hard rules: pull/merge requests never deploy; no rule for the env = no deploy;
+Hard rules: pull/merge requests never deploy; no rule for the mode = no deploy;
 no ci.policy.build = everything builds; a run that does not build does not deploy.`
 
 const targetsHelp = `ci targets / ci target - where does this run deploy to?

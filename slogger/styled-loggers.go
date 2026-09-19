@@ -84,7 +84,20 @@ func NewTeeLogger(path string, level slog.Level) (*slog.Logger, *os.File, error)
 // or use the package-level CloseLogger() if SetLogger was used to initialise.
 // If the file cannot be opened the logger falls back to console-only.
 func UsePrettyWithDbgTmpLogger(level slog.Level) (io.Closer, error) {
-	h, closer, err := NewPrettyWithDbgTmpHandler(level)
+	return useDbgTmp(NewPrettyWithDbgTmpHandler, level)
+}
+
+// UseCiWithDbgTmpLogger is UsePrettyWithDbgTmpLogger without console
+// timestamps - for CI runners, which stamp every line themselves.
+func UseCiWithDbgTmpLogger(level slog.Level) (io.Closer, error) {
+	return useDbgTmp(NewCiWithDbgTmpHandler, level)
+}
+
+// useDbgTmp installs a debug-file logger, closing the previous logger's file
+// first (--debug rebuilds the logger after init has already opened one).
+func useDbgTmp(build func(slog.Level) (slog.Handler, io.Closer, error), level slog.Level) (io.Closer, error) {
+	_ = CloseLogger()
+	h, closer, err := build(level)
 	logCloser = closer
 	Logger = slog.New(h)
 	slog.SetDefault(Logger)

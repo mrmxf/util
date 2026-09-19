@@ -48,7 +48,7 @@ func init() {
 	runCmd.Flags().SetInterspersed(false) // flags after <command> belong to the command
 	Command.AddCommand(resolveCmd)
 	Command.AddCommand(runCmd)
-	policyCmd.Flags().StringVar(&policyFormatFlag, "format", "json", "output format: json (default) or env (clog_env/do_build/do_deploy lines for $GITHUB_ENV)")
+	policyCmd.Flags().StringVar(&policyFormatFlag, "format", "json", "output format: json (default) or env (build_mode/deploy_mode/do_build/do_deploy/deploy_targets lines for $GITHUB_ENV)")
 	Command.AddCommand(policyCmd)
 	getCmd.Flags().BoolVar(&getRequiredFlag, "required", false, "exit 1 when the key is missing or empty")
 	Command.AddCommand(getCmd)

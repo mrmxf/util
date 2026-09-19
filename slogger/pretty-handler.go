@@ -49,6 +49,11 @@ type PrettyHandlerOptions struct {
 	// TimeFormat is the format used for time.DateTime
 	TimeFormat string
 
+	// OmitTime drops the timestamp from each line. For CI consoles, where the
+	// runner already stamps every line (in UTC) and a second clock only
+	// confuses. Does not affect other handlers in a MultiHandler.
+	OmitTime bool
+
 	// Theme defines the colorized output using ANSI escape sequences
 	Theme Theme
 }
@@ -97,7 +102,9 @@ func (h *Handler) Enabled(_ context.Context, l slog.Level) bool {
 func (h *Handler) Handle(_ context.Context, rec slog.Record) error {
 	buf := bufferPool.Get().(*buffer)
 
-	h.enc.writeTimestamp(buf, rec.Time)
+	if !h.opts.OmitTime {
+		h.enc.writeTimestamp(buf, rec.Time)
+	}
 	h.enc.writeLevel(buf, rec.Level)
 	if h.opts.AddSource && rec.PC > 0 {
 		h.enc.writeSource(buf, rec.PC, cwd)

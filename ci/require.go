@@ -67,7 +67,14 @@ func Require(env Env, verb string) error {
 
 	var fixes []string
 	if len(missingEnv) > 0 {
-		fix := fmt.Sprintf("secrets %s: run it with secrets:  clog ci run -- clog %s", strings.Join(missingEnv, ", "), verb)
+		// the verb is a ci.require key, not necessarily a clog command
+		// (deploy-form, say), so only build/deploy get a literal command
+		cmd := "<the command that needs them>"
+		if verb == "build" || verb == "deploy" {
+			cmd = "clog " + verb
+		}
+		fix := fmt.Sprintf("secrets %s (they come from %s): run under  clog ci run -- %s",
+			strings.Join(missingEnv, ", "), where, cmd)
 		if env.Getenv(RunMarkerVar) == "1" {
 			fix = fmt.Sprintf("secrets %s: add them in %s", strings.Join(missingEnv, ", "), where)
 		}

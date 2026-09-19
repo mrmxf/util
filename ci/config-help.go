@@ -29,7 +29,7 @@ MODEL
                     CLOG_TARGET="$t" clog ci run -- bash -c 'clog ci require deploy && clog deploy' || exit 1
                   done
   flow        : clog ci run -- clog <verb>
-                = clog ci env -> platform OIDC token -> POST <domain>/api/v1/auth/oidc-auth/login
+                = clog ci mode -> platform OIDC token -> POST <domain>/api/v1/auth/oidc-auth/login
                   -> GET <domain>/api/v4/secrets (imports merged) -> exec <verb> with secrets in env
                   (no Infisical CLI needed in CI; laptop uses the infisical login session)
 
