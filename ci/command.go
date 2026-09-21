@@ -63,6 +63,7 @@ func init() {
 	Command.AddCommand(targetCmd)
 	deployCmd.Flags().StringVar(&deployTargetFlag, "target", "", "deploy only this ci.targets.<name>")
 	deployCmd.Flags().BoolVar(&deployDryRunFlag, "dry-run", false, "report what would be published, change nothing")
+	deployCmd.Flags().StringVar(&deployModeFlag, "mode", "", "force the mode (dev|prod) instead of the one ci.policy resolves")
 	Command.AddCommand(deployCmd)
 }
 

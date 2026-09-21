@@ -76,8 +76,8 @@ func ModeGet(mode, key string, required bool) (string, error) {
 var modeGetRequired bool
 
 var modeCmd = &cobra.Command{
-	Use:   "mode [get <key>]",
-	Short: "print this run's mode (dev|prod), or one of its ci.modes settings",
+	Use:   "mode [dev|prod] [get <key>]",
+	Short: "print this run's mode (dev|prod), validate a forced one, or read a ci.modes setting",
 	Long:  modeHelp,
 	// a wrong mode builds the wrong thing - say so out loud (see envCmd history)
 	SilenceUsage: true,
@@ -111,6 +111,21 @@ func runMode(cmd *cobra.Command, args []string) error {
 		_, err := fmt.Fprintln(out, d.Mode)
 		return err
 
+	// `clog ci mode prod` validates a forced mode and echoes it, so a snippet
+	// can turn its own argument into an override in one line:
+	//
+	//   [ -n "$1" ] && export CLOG_MODE="$(clog ci mode "$1")"
+	//
+	// Sites used to carry a private bc-mode snippet for exactly this, and the
+	// copies drifted. Validation belongs here, where a typo is an error rather
+	// than a silent dev build.
+	case args[0] == ModeDev || args[0] == ModeProd:
+		if len(args) != 1 {
+			return fmt.Errorf("`ci mode %s` takes no further arguments", args[0])
+		}
+		_, err := fmt.Fprintln(out, args[0])
+		return err
+
 	case args[0] == "get":
 		if len(args) != 2 {
 			return fmt.Errorf("`ci mode get` needs exactly one key, e.g. `clog ci mode get base-url`")
@@ -134,7 +149,7 @@ func runMode(cmd *cobra.Command, args []string) error {
 		return nil
 
 	default:
-		return fmt.Errorf("unknown `ci mode` sub-command %q (want `get <key>` or `show`)", args[0])
+		return fmt.Errorf("unknown `ci mode` argument %q (want `dev`, `prod`, `get <key>` or `show`)", args[0])
 	}
 }
 

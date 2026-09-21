@@ -117,10 +117,11 @@ func contains(list []string, want string) bool {
 var (
 	deployTargetFlag string
 	deployDryRunFlag bool
+	deployModeFlag   string
 )
 
 var deployCmd = &cobra.Command{
-	Use:          "deploy [--target <name>] [--dry-run]",
+	Use:          "deploy [--target <name>] [--mode dev|prod] [--dry-run]",
 	Short:        "publish the build to every target for this run's mode",
 	Long:         deployHelp,
 	SilenceUsage: true,
@@ -135,7 +136,17 @@ var deployCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		// --mode forces the mode without the caller having to export CLOG_MODE,
+		// which is what `clog deploy prod` needs to mean something.
+		mode := d.Mode
+		if deployModeFlag != "" {
+			if deployModeFlag != ModeDev && deployModeFlag != ModeProd {
+				return fmt.Errorf("--mode %q: want %s or %s", deployModeFlag, ModeDev, ModeProd)
+			}
+			mode = deployModeFlag
+			slog.Warn("deploy mode forced on the command line", "mode", mode, "resolved", d.Mode)
+		}
 		dry := deployDryRunFlag || (DryRun != nil && DryRun())
-		return Deploy(env, cfg, d.Mode, deployTargetFlag, dry, cmd.OutOrStdout())
+		return Deploy(env, cfg, mode, deployTargetFlag, dry, cmd.OutOrStdout())
 	},
 }

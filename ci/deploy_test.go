@@ -275,3 +275,28 @@ func TestDeployGitHubPagesAgainstRealGit(t *testing.T) {
 		t.Errorf("publish dir should stay clean, .git exists")
 	}
 }
+
+// `clog deploy prod` must actually deploy in prod. Sites used to carry a private
+// bc-mode snippet to turn an argument into CLOG_MODE; --mode does it here so the
+// copies can go.
+func TestDeployModeFlagForcesTargetSelection(t *testing.T) {
+	dir := builtSite(t)
+	cfg := pagesConfig(map[string]any{"dir": dir}) // prod-only target
+	calls, restore := recordExec(t, "")
+	defer restore()
+
+	// the resolved mode is dev, where this target does not deploy
+	if err := Deploy(pagesEnv(nil), cfg, ModeDev, "", false, &bytes.Buffer{}); err != nil {
+		t.Fatalf("dev: %v", err)
+	}
+	if len(*calls) != 0 {
+		t.Errorf("a prod-only target must not deploy in dev, got %v", *calls)
+	}
+	// forced to prod, it does
+	if err := Deploy(pagesEnv(nil), cfg, ModeProd, "", false, &bytes.Buffer{}); err != nil {
+		t.Fatalf("prod: %v", err)
+	}
+	if len(*calls) == 0 {
+		t.Error("forcing prod should have published")
+	}
+}
