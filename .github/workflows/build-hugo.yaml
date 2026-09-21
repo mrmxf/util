@@ -26,6 +26,7 @@ on:
       make:      { required: false, type: string, default: "" }  # MAKE override for clog build
       clog-ref:  { required: false, type: string, default: "" }
       clog-repo: { required: false, type: string, default: mrmxf/clog-sample }
+      production: { required: false, type: boolean, default: false }  # build/deploy the newest release tag
     secrets:
       clog_download_token: { required: false }
 
@@ -45,6 +46,7 @@ jobs:
       - name: prepare (checkout, go, clog, ci.policy)
         uses: mrmxf/util/.github/actions/clog-prepare@workflows-v1
         with:
+          production: ${{ inputs.production }}
           clog-ref: ${{ inputs.clog-ref }}
           clog-repo: ${{ inputs.clog-repo }}
           token: ${{ secrets.clog_download_token }}

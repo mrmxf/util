@@ -300,3 +300,20 @@ func TestDeployModeFlagForcesTargetSelection(t *testing.T) {
 		t.Error("forcing prod should have published")
 	}
 }
+
+// A repo with no secret store must still run. Not every repo has secrets - a
+// docs site publishing to GitHub Pages needs only the token Actions provides -
+// and `clog ci run` used to fail such a repo with "missing .clog.yaml keys".
+func TestInfisicalIsUnset(t *testing.T) {
+	if !(InfisicalConfig{}).isUnset() {
+		t.Error("an absent ci.infisical block should be unset")
+	}
+	// a partially filled block is a typo, not an opt-out
+	partial := InfisicalConfig{Domain: "https://eu.infisical.com"}
+	if partial.isUnset() {
+		t.Error("a partial ci.infisical block must NOT count as unset")
+	}
+	if err := partial.validate(); err == nil {
+		t.Error("a partial ci.infisical block must still fail validation")
+	}
+}

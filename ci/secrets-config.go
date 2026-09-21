@@ -76,6 +76,18 @@ var ConfigValue = func(key string) any {
 }
 
 // validate checks the fields a secret fetch needs, naming each missing key.
+// isUnset reports that the repo declares no secret store at all. Not every
+// repo has secrets - a docs site deploying to GitHub Pages needs only the
+// token Actions already provides - and such a repo should not be forced to
+// invent an Infisical project. A PARTIALLY filled block is still an error:
+// a typo must not silently turn secrets off.
+func (c InfisicalConfig) isUnset() bool {
+	return strings.TrimSpace(c.Domain) == "" &&
+		strings.TrimSpace(c.ProjectID) == "" &&
+		strings.TrimSpace(c.Path) == "" &&
+		len(c.Env) == 0
+}
+
 func (c InfisicalConfig) validate() error {
 	var missing []string
 	for key, val := range map[string]string{

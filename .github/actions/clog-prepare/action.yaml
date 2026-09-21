@@ -45,6 +45,15 @@ inputs:
     description: token for a private clog release repo (optional)
     required: false
     default: ""
+  production:
+    description: >-
+      "true" = check out the newest release tag and force prod mode, whatever
+      triggered the run. A scheduled run already does this (ci resolve sets
+      is_production); this lets a caller ask for it on a manual run, so
+      "rebuild and republish the current release" is one click in the Actions
+      tab rather than a tag push.
+    required: false
+    default: "false"
 
 outputs:
   do_build:
@@ -94,6 +103,16 @@ runs:
         clog-repo: ${{ inputs.clog-repo }}
         token: ${{ inputs.token }}
 
+    # Force prod BEFORE the policy runs, so build_mode/deploy_mode/do_deploy are
+    # all decided as a production run rather than patched up afterwards.
+    # Only CLOG_MODE is set here: `clog ci resolve` writes is_production in the
+    # next step, and a later $GITHUB_ENV line wins, so setting it here would be
+    # silently undone.
+    - name: force production mode
+      if: inputs.production == 'true'
+      shell: bash
+      run: echo "CLOG_MODE=prod" >> "$GITHUB_ENV"
+
     - name: resolve event + ci.policy
       id: plan
       shell: bash
@@ -106,7 +125,8 @@ runs:
         } >> "$GITHUB_ENV"
         clog ci policy
 
-    - name: production checkout (scheduled runs)
-      if: env.is_production == 'true' && steps.plan.outputs.do_build == 'true'
+    # Scheduled runs, and any caller passing production: true.
+    - name: production checkout (newest release tag)
+      if: env.is_production == 'true' || inputs.production == 'true'
       shell: bash
       run: clog BC git checkout production

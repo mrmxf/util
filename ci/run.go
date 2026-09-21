@@ -105,6 +105,10 @@ func fetchForContext(env Env, r Resolution, mode string) ([]Secret, error) {
 		return nil, err
 	}
 	inf := cfg.Infisical
+	if inf.isUnset() {
+		slog.Info("no ci.infisical block: running without secrets", "mode", mode)
+		return nil, nil
+	}
 	if err := inf.validate(); err != nil {
 		return nil, err
 	}
