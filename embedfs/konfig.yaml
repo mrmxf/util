@@ -395,7 +395,9 @@ snippets:
 
     mode="$(clog ci mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
     linkerPath="$(clog BC linkerpath)"
-    lds="$(clog BC genBuildinfo "$mode" --format ldflags --name "$EXE" --title "$TITLE")" || {
+    # $FLAVOUR marks the build edition (+plain, +mrmxf) so two binaries built
+    # from different main packages can be told apart at runtime. Optional.
+    lds="$(clog BC genBuildinfo "$mode" --format ldflags --name "$EXE" --title "$TITLE" --flavour "${FLAVOUR:-}")" || {
       clog BC stashLog -1 build -2 golang -3 gobuild -E "❌ no build info for a $mode build - see the error above"
       exit 1; }
     version="$(clog BC genBuildinfo "$mode" --format version)"

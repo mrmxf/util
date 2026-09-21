@@ -77,10 +77,11 @@ func DockerTag(version string) string { return strings.ReplaceAll(version, "+", 
 
 // BuildOptions are the parts of the linker data that do not come from git.
 type BuildOptions struct {
-	Mode   string // dev | prod
-	Name   string // command name, e.g. clog
-	Title  string // printable name; spaces become _
-	Branch string // dev builds: shown as the version suffix
+	Mode    string // dev | prod
+	Name    string // command name, e.g. clog
+	Title   string // printable name; spaces become _
+	Branch  string // dev builds: shown as the version suffix
+	Flavour string // build edition, e.g. plain | mrmxf; shown as +flavour
 }
 
 // Generate makes the linker data for a build. prod is refused unless HEAD is
@@ -111,6 +112,7 @@ func Generate(g GitState, o BuildOptions) (LinkerDataJSON, error) {
 		Date:     g.CommitDate,
 		AppName:  o.Name,
 		AppTitle: strings.ReplaceAll(o.Title, " ", "_"),
+		Flavour:  o.Flavour,
 	}
 	if o.Mode == "dev" && !strings.Contains(d.Tag, "+") {
 		d.Suffix = o.Branch // on a tag but a dev build: say which branch

@@ -74,11 +74,23 @@ base="https://github.com/${CLOG_REPO}/releases/download/${CLOG_VERSION}"
 log "installing clog ${CLOG_VERSION} (${asset}) from ${CLOG_REPO} → ${CLOG_INSTALL_DIR}"
 
 # curl with optional auth for private repos. --fail makes HTTP errors fatal.
-fetch() { # fetch <url> <dest>
+_curl() { # _curl <extra-opts...> -- <url> <dest>
   local auth=()
   [ -n "${CLOG_TOKEN:-}" ] && auth=(--header "Authorization: Bearer ${CLOG_TOKEN}")
-  curl --fail --location --silent --show-error "${auth[@]}" "$1" --output "$2"
+  local opts=()
+  while [ "$1" != "--" ]; do opts+=("$1"); shift; done
+  shift
+  curl --fail --location --silent "${opts[@]}" "${auth[@]}" "$1" --output "$2"
 }
+
+# fetch — REQUIRED asset. curl explains itself on stderr; the caller dies.
+fetch() { _curl --show-error -- "$1" "$2"; }
+
+# try_fetch — OPTIONAL asset. A 404 is a normal answer ("not published"), so
+# curl is kept quiet: --show-error here printed a bare `curl: (22) ... 404`
+# into the job log immediately before the line saying it was fine, which reads
+# like a failure the script then ignored.
+try_fetch() { _curl -- "$1" "$2" 2>/dev/null; }
 
 fetch "${base}/${asset}" "${tmp}/clog" \
   || die "download failed: ${base}/${asset} (is ${CLOG_VERSION} released for ${CLOG_REPO}?)"
@@ -101,7 +113,7 @@ fi
 # --- optional SLSA provenance verification ---------------------------------
 # If slsa-verifier is on PATH and the release ships provenance, verify it.
 if command -v slsa-verifier >/dev/null 2>&1; then
-  if fetch "${base}/${asset}.intoto.jsonl" "${tmp}/${asset}.intoto.jsonl"; then
+  if try_fetch "${base}/${asset}.intoto.jsonl" "${tmp}/${asset}.intoto.jsonl"; then
     log "verifying SLSA provenance"
     slsa-verifier verify-artifact "${tmp}/clog" \
       --provenance-path "${tmp}/${asset}.intoto.jsonl" \

@@ -92,6 +92,7 @@ func ParseLinkerJSON(semVerJSON string) (VersionInfo, bool, error) {
 		ARCH:     runtime.GOARCH,
 		OS:       runtime.GOOS,
 		Date:     data.Date,
+		Flavour:  data.Flavour,
 	}
 
 	// Calculate suffix fields
@@ -103,11 +104,32 @@ func ParseLinkerJSON(semVerJSON string) (VersionInfo, bool, error) {
 		info.SuffixLong = ""
 	}
 
+	// The build edition goes where Hugo puts +extended: after the version and
+	// before the platform. Semver allows ONE build-metadata section, so when
+	// the tag already carries one - v0.4.9+dev.2.g0a118e7, or +dirty - the
+	// flavour joins it as another dot-separated identifier rather than opening
+	// a second "+", which would not parse.
+	//
+	//   v0.12.6            -> v0.12.6+mrmxf
+	//   v0.12.6+dirty      -> v0.12.6+dirty.mrmxf
+	//   v0.4.9+dev.2.gabc  -> v0.4.9+dev.2.gabc.mrmxf
+	//
+	// Empty for an unmarked build, so a binary built without one is unchanged.
+	flavour := ""
+	if info.Flavour != "" {
+		sep := "+"
+		if strings.Contains(info.Tag+info.SuffixLong, "+") {
+			sep = "."
+		}
+		flavour = sep + info.Flavour
+	}
+
 	// Calculate Short and Long version strings
-	info.Short = info.Tag + info.SuffixShort
-	info.Long = fmt.Sprintf("%s%s (%s:%s:%s)",
+	info.Short = info.Tag + info.SuffixShort + flavour
+	info.Long = fmt.Sprintf("%s%s%s (%s:%s:%s)",
 		info.Tag,
 		info.SuffixLong,
+		flavour,
 		info.Date,
 		info.OS,
 		info.ARCH)

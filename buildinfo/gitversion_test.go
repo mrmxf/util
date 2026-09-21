@@ -198,3 +198,27 @@ func TestReadGitState(t *testing.T) {
 		})
 	})
 }
+
+// The build edition must land in the one build-metadata section semver allows.
+// Two "+" sections do not parse, and these strings are compared by
+// `clog BC semver` and turned into docker tags.
+func TestFlavourJoinsBuildMetadata(t *testing.T) {
+	for _, tc := range []struct{ tag, flavour, want string }{
+		{"v0.12.6", "mrmxf", "v0.12.6+mrmxf"},
+		{"v0.12.6+dirty", "mrmxf", "v0.12.6+dirty.mrmxf"},
+		{"v0.4.9+dev.2.gabc1234", "plain", "v0.4.9+dev.2.gabc1234.plain"},
+		{"v0.12.6", "", "v0.12.6"}, // unmarked builds are unchanged
+	} {
+		d := LinkerDataJSON{Build: "prod", Tag: tc.tag, Hash: "abc1234", Flavour: tc.flavour}
+		info, _, err := ParseLinkerJSON(d.JSON())
+		if err != nil {
+			t.Fatalf("%s/%s: %v", tc.tag, tc.flavour, err)
+		}
+		if info.Short != tc.want {
+			t.Errorf("tag %q flavour %q -> Short %q, want %q", tc.tag, tc.flavour, info.Short, tc.want)
+		}
+		if strings.Count(info.Short, "+") > 1 {
+			t.Errorf("Short %q has two build-metadata sections", info.Short)
+		}
+	}
+}

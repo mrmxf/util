@@ -16,6 +16,14 @@ type LinkerDataJSON struct {
 	Suffix   string `json:"suffix"` // e.g.`rc` applied to VersionInfo.Short
 	AppName  string `json:"name"`   // default = basename of `module`  go.mod
 	AppTitle string `json:"title"`  // default = basename of `module`  go.mod
+	// Flavour is the BUILD EDITION, e.g. "plain" or "mrmxf". clog ships from
+	// more than one main package - clog-sample carries the public util/*
+	// modules only, clog-mrmxf adds the private ones - and the binaries are
+	// otherwise indistinguishable. Hugo marks the same distinction as
+	// "+extended"; it uses a Go build tag because one source tree builds both
+	// ways, whereas here the edition IS which module you built, so it comes
+	// through the linker like the name and title.
+	Flavour string `json:"flavour"`
 }
 
 type VersionInfo struct {
@@ -31,6 +39,7 @@ type VersionInfo struct {
 	Short           string // made in cleanLinkerData()
 	SuffixLong      string `json:"semverSuffix"` // from linker
 	SuffixShort     string // made in cleanLinkerData()
+	Flavour         string // build edition from the linker, e.g. plain | mrmxf
 	Tag             string //from releases.yaml
 	Err             error  //if an error occurs during init()
 }

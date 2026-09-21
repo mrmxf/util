@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	genFormat string
-	genName   string
-	genTitle  string
+	genFormat  string
+	genName    string
+	genTitle   string
+	genFlavour string
 )
 
 const genHelp = `Generate build information from the state of the git repository.
@@ -62,7 +63,7 @@ var genBuildinfoCmd = &cobra.Command{
 			return err
 		}
 		d, err := buildinfo.Generate(g, buildinfo.BuildOptions{
-			Mode: mode, Name: genName, Title: genTitle, Branch: currentBranch(),
+			Mode: mode, Name: genName, Title: genTitle, Flavour: genFlavour, Branch: currentBranch(),
 		})
 		if err != nil {
 			return err
@@ -107,5 +108,6 @@ func init() {
 	genBuildinfoCmd.Flags().StringVar(&genFormat, "format", "json", "json | ldflags | version | docker-tag | env")
 	genBuildinfoCmd.Flags().StringVar(&genName, "name", "", "command name (default: the built module's name)")
 	genBuildinfoCmd.Flags().StringVar(&genTitle, "title", "", "printable name (default: the built module's name)")
+	genBuildinfoCmd.Flags().StringVar(&genFlavour, "flavour", "", "build edition shown as +flavour, e.g. plain | mrmxf")
 	Command.AddCommand(genBuildinfoCmd)
 }
