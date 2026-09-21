@@ -128,17 +128,17 @@ check:
     blocks:
       - name: wsl Zone.Identifier files
         try: |
-          [ -n "$(find . -name '*Zone.Identifier')"]
+          [ -z "$(find . -name '*Zone.Identifier' -not -path '*/node_modules/*')" ]
         ok: clog BC stashLog -1 check -2 hugo -3 "Zone.Identifier" -I "no Zone.Identifier present"
         catch: |
           eval "$(clog Crayon)"
-          n=$(find . -name '*Zone.Identifier'|wc -l)
+          n=$(find . -name '*Zone.Identifier' -not -path '*/node_modules/*'|wc -l)
           clog   BC stashLog -1 check -2 hugo -3 "Zone.Identifier" -E "Delete $n Zone.Identifier files made by Windows"
           while IFS= read -r line; do
             fn="$(echo ${line:2}|cut  -d ":" -f "1")"
             id="$(echo ${line:2}|cut  -d ":" -f "2")"
             clog BC stashLog -1 -2 hugo -3 "Zone.Identifier"  check -E "      ❌$cF $fn$cX:$cW$id"
-          done < <(find . -name '*Zone.Identifier')
+          done < <(find . -name '*Zone.Identifier' -not -path '*/node_modules/*')
           clog   BC is build prod && exit 1
 
       - name: golang version
@@ -198,6 +198,16 @@ check:
         try: clog BC semver "$(clog project needs golang)" "$(clog project has golang)"
         ok:   clog BC stashLog -1 check -2 tools -3 golang -I "golang $(clog project has golang) ok"
         catch: clog BC stashLog -1 check -2 tools -3 golang -E "wrong go version. Need $(clog project needs golang)"
+      - name: yq
+        try: which yq 2>/dev/null
+        ok:   clog BC stashLog -1 check -2 tools -3 yq -I "yq present"
+        catch: clog BC stashLog -1 check -2 tools -3 yq -E "yq not present"
+      - name: aws cli v2
+        try: |
+          vv="$(aws --version 2>/dev/null|grep -oE '\/[0-9]+\.[0-9]+\.[0-9]+'|head -1|tr -d [/]|head -c 2)"
+          [[ "2." == "$vv" ]]
+        ok:   clog BC stashLog -1 check -2 tools -3 aws -I "aws cli v2 present"
+        catch: clog BC stashLog -1 check -2 tools -3 aws -E "aws cli v2 not present."
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 #               _                       _
 #   ||_  _ _   (_)  _ __   _ __   ___  | |_   ___
@@ -299,12 +309,22 @@ snippets:
     ERR=0
     clog BC stashLog -1 build -2 hugo -3 start -I "⚒️  build hugo $phase→$cF kodata/"
 
-    [ ! -d content ] && clog BC stashLog -1 build -2 hugo -3 content -E "⚒️  build hugo no content/ folder" && exit 1
+    # Content may be a content/ directory OR a module mount declared in
+    # module.yaml. Ask hugo what it can actually see: a mount-only repo is
+    # legitimate and must build without a symlink.
+    if [ -z "$(hugo list all 2>/dev/null | head -1)" ]; then
+      clog BC stashLog -1 build -2 hugo -3 content -E "⚒️  build hugo has no content - no content/ dir and no module mount"
+      exit 1
+    fi
     clog BC stashLog -1 build -2 hugo -3 purge -I "$STEP.$(((++s))). purge$cF kodata/$cX, build site"
     rm -rf kodata/*
 
     opt="$opt --buildDrafts --buildFuture --buildExpired"
     [ "$(clog ci mode)" = prod ] && opt=""
+    # A site published under a path (project Pages, a staging host) needs its
+    # base URL at build time or every link is wrong. Comes from ci.modes.
+    baseUrl="$(clog ci mode get base-url)"
+    [ -n "$baseUrl" ] && opt="$opt --baseURL $baseUrl"
     clog BC stashLog -1 build -2 hugo -3 hugoBuild -I "$STEP.$(((++s))). build hugo $phase→${cF}kodata/$cC $opt"
     hugo build --minify --logLevel info $opt
     ((ERR+=$?))

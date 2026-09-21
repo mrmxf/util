@@ -5,6 +5,7 @@
 package kfg
 
 import (
+	"errors"
 	"log/slog"
 
 	"github.com/knadh/koanf/parsers/yaml"
@@ -97,4 +98,17 @@ func Konfigure(opt ...*KonfigureOpt) error {
 	}
 
 	return nil
+}
+
+// MarshalYAML returns the fully merged configuration as YAML: the embedded base
+// layer, every overlay merged over it, and the repo's own .clog.yaml.
+//
+// Any single layer's file is only part of the answer. Once config is layered an
+// app's embedded konfig.yaml is a delta, so handing that file to a user as "the
+// configuration" shows them a fragment. This shows what clog actually runs with.
+func MarshalYAML() ([]byte, error) {
+	if Raw == nil {
+		return nil, errors.New("configuration not initialized: call Konfigure() first")
+	}
+	return Raw.Marshal(yaml.Parser())
 }
