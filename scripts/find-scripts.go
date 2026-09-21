@@ -19,10 +19,10 @@ import (
 var c = crayon.Color()
 var scriptsMap = map[string]map[string]string{}
 
-// Add scripts from clogrc folder
+// Add scripts found by folderGlob (the caller chooses the folder)
 func Bootstrap(rootCmd *cobra.Command, folderGlob string) {
 
-	//look for all shell scripts in the clogrc folder
+	//look for all shell scripts matching the glob
 	scripts, err := filepath.Glob(folderGlob)
 	//if there is an error, log it and exit
 	if err != nil {

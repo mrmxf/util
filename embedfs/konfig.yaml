@@ -9,9 +9,12 @@
 #  \__| \___/ |_|   \___| (_) \__| |_| \___/ \__, | (_)  \_, | \__,_| |_|_|_| |_|
 #                                            |___/       |__/                    
 ### when clog starts it uses these config values. 
-###    1. clog searches for `clog.yaml` in each `clog.clogrc.search-order` folder
+###    1. clog searches for each file in `kfg.try-paths`, in order
 ###    2. for every match, the config is overlaid on previous configs
-###    3. recommended order: machine config, user config, project config
+###    3. order is user config, then project config - last one wins
+###
+### `.clog.yaml` in the repo root is THE canonical place for a repo's config.
+### The old `clogrc/clog.yaml` is legacy and is no longer searched.
 
 #                        ⇓⇓⇓⇓⇓⇓⇓           ⇓⇓⇓⇓
 # ALL YAML KEYS ARE ⇒⇒ lowercase ⇔ with hyphens ⇐⇐ (not underscores) only.
@@ -31,10 +34,7 @@ kfg:
   # try to load the following files (in order) to overlay configs
   # NOTE - koanf gets unhappy if relative paths start with "./"
   try-paths:
-    - /var/clogrc/clog.yaml
-    - $HOME/.config/clogrc/clog.yaml
     - $HOME/.clog.yaml
-    - clogrc/clog.yaml
     - .clog.yaml
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 # clog.xxx is auto-loaded into the my.App structure
