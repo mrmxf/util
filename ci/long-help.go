@@ -154,6 +154,45 @@ A scheduled prod run should build the newest release tag on the default branch:
 Hard rules: pull/merge requests never deploy; no rule for the mode = no deploy;
 no ci.policy.build = everything builds; a run that does not build does not deploy.`
 
+const deployHelp = `ci deploy - publish the build to this run's targets
+
+  clog ci deploy                    every target that deploys in this mode
+  clog ci deploy --target pages     just that one
+  clog ci deploy --dry-run          say what would happen, change nothing
+
+Each ci.targets.<name> has a kind, and the kind decides how it is published.
+Targets run in config order; the first failure stops the run, because a
+half-deployed release is worse than a stopped one.
+
+  github-pages    force-push a directory to a Pages branch
+
+Kinds that clog ci targets accepts but that are not shown above are declared and
+validated, but have no deployer yet; naming one is an error, not a silent skip.
+
+github-pages target data, per mode:
+
+  targets:
+    pages:
+      kind: github-pages
+      prod: {dir: kodata, branch: gh-pages, cname: example.org}
+
+  dir     directory to publish            required
+  branch  branch to force-push to         default gh-pages
+  repo    owner/name to push to           default: this repo's origin
+  cname   custom domain, written as CNAME optional
+
+It writes .nojekyll, because Pages otherwise runs Jekyll and drops files whose
+names begin with an underscore.
+
+Credentials: $GH_TOKEN or $GITHUB_TOKEN in CI; the origin remote (so your ssh
+key) on a laptop. The token never reaches a log - it is redacted from the push
+URL and from any git error output.
+
+Pages must already point at the branch. This will publish the branch but never
+turns Pages on or changes a live site's serving source: that is a one-time
+setting, not something a deploy should do behind your back.
+`
+
 const targetsHelp = `ci targets / ci target - where does this run deploy to?
 
   clog ci targets                       target names for this mode, one per line

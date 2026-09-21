@@ -61,6 +61,9 @@ func init() {
 	Command.AddCommand(targetsCmd)
 	targetCmd.Flags().BoolVar(&targetGetRequire, "required", false, "exit 1 when the key is missing or empty")
 	Command.AddCommand(targetCmd)
+	deployCmd.Flags().StringVar(&deployTargetFlag, "target", "", "deploy only this ci.targets.<name>")
+	deployCmd.Flags().BoolVar(&deployDryRunFlag, "dry-run", false, "report what would be published, change nothing")
+	Command.AddCommand(deployCmd)
 }
 
 func runResolve(cmd *cobra.Command, args []string) error {
