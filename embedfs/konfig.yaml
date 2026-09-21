@@ -689,8 +689,17 @@ snippets:
     # ------------------------------------------------------------------------------------------------------------------
     # ---  Mr MXF clog snippets - not in main core
     # ------------------------------------------------------------------------------------------------------------------
+    # ANTIQUE. This predates .clog.yaml and has not been reworked.
+    #
+    # It used to lean on `clog Init` leaving a clogrc/clog.yaml behind. That
+    # path is no longer searched and Init now writes .clog.sample.yaml, so the
+    # host's deb config is .clog.deb.yaml, written explicitly here.
+    #
+    # clogrc/ survives below only as a SCRIPT folder - deb0.sh, certs.sh and
+    # the backup/restore scripts all live there and deb0.sh mkdir -p's it. That
+    # is a different thing from config and is left alone.
     deb: |
-      clog Init
+      clog Cat tpl/clog.yaml > .clog.deb.yaml
       clog Cat core/deb/deb0.sh > clogrc/deb0.sh
       clog deb0
 
