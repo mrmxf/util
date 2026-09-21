@@ -195,3 +195,42 @@ func TestStringListRejectsNumbers(t *testing.T) {
 		t.Error("a number is neither a string nor a list")
 	}
 }
+
+// A manual run's ref is the branch it was launched from, so it can never match
+// a tag glob - even when the job then checks out the release tag. dispatch:true
+// is what lets "republish the current release" be one click.
+func TestDeployDispatchRule(t *testing.T) {
+	prev := LoadConfig
+	defer func() { LoadConfig = prev }()
+
+	withRule := func(r DeployRule) {
+		LoadConfig = func() (Config, error) {
+			return Config{
+				Policy:  Policy{Build: []Event{EventDispatch}, Deploy: map[string]DeployRule{ModeProd: r}},
+				Targets: map[string]Target{"pages": {Kind: KindGitHubPages, Modes: []string{ModeProd}, Prod: map[string]any{"dir": "kodata"}}},
+			}, nil
+		}
+	}
+	env := ghEnv("workflow_dispatch", "refs/heads/main", map[string]string{"CLOG_MODE": "prod"})
+
+	withRule(DeployRule{Tags: stringList{"v*"}})
+	d, err := Decide(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Deploy {
+		t.Errorf("a tags-only rule must not deploy a manual run: %s", d.DeployReason)
+	}
+
+	withRule(DeployRule{Tags: stringList{"v*"}, Dispatch: true})
+	d, err = Decide(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.Deploy {
+		t.Errorf("dispatch: true should allow a manual deploy: %s", d.DeployReason)
+	}
+	if len(d.Targets) != 1 || d.Targets[0] != "pages" {
+		t.Errorf("targets = %v, want [pages]", d.Targets)
+	}
+}

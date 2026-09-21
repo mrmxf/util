@@ -45,6 +45,7 @@ type DeployRule struct {
 	Branches     stringList `json:"branches"`      // globs, * matches anything incl "/"
 	Tags         stringList `json:"tags"`          // globs
 	Schedule     bool       `json:"schedule"`      // scheduled runs may deploy
+	Dispatch     bool       `json:"dispatch"`      // manual runs may deploy
 	ReleasesYAML string     `json:"releases-yaml"` // DEPRECATED, ignored (warns): prod comes from the release tag
 }
 
@@ -221,6 +222,12 @@ func decideDeploy(pol Policy, d Decision) (bool, string) {
 		if rule.Schedule {
 			matched = "scheduled runs allowed (schedule: true)"
 		}
+	// A manual run's ref is the branch it was launched from, so it can never
+	// match a tag glob - even when the job then checks out the release tag.
+	// dispatch: true says "a human asking for this deploy is authorisation
+	// enough", which is what makes "republish the current release" one click.
+	case d.Event == EventDispatch && rule.Dispatch:
+		matched = "manual run allowed (dispatch: true)"
 	default: // branch, dispatch, local
 		if glob := matchAny(rule.Branches, d.Ref); glob != "" {
 			matched = fmt.Sprintf("branch %s matches %q", d.Ref, glob)
