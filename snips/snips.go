@@ -72,6 +72,14 @@ func addSnippetCmd(parentCmd, cmd *cobra.Command) {
 	parentCmd.AddCommand(cmd)
 }
 
+// wantsHelp reports that the caller asked for the snippet's help rather than
+// for it to run. Snippets parse their own flags, so this is the one cobra flag
+// still honoured, and only in first position - `clog build --help` explains the
+// command, while `clog build dev --help` is the script's business.
+func wantsHelp(args []string) bool {
+	return len(args) > 0 && (args[0] == "--help" || args[0] == "-h")
+}
+
 // warnIfOverride warns when the snippet being run (or a snippet group it lives
 // in) replaced a built-in command.
 func warnIfOverride(cmd *cobra.Command) {
@@ -93,10 +101,12 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 			cmd := &cobra.Command{
 				Use:   kmd,
 				Short: kmdPath(parentCmd, kmd),
-				// A snippet is a shell script: its flags are its own. Without
-				// this, cobra rejects `clog build dev --fast` before the script
-				// ever sees it. Known flags (--help) still work.
-				FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
+				// A snippet is a shell script: its flags are its own, and it
+				// needs the raw argv. Whitelisting unknown flags stops the
+				// error but cobra still consumes them, so `clog build dev
+				// --fast` would reach the script as `dev`. help is intercepted
+				// in Run so `clog <snippet> --help` still works.
+				DisableFlagParsing: true,
 				Annotations: map[string]string{
 					"command": kmdPath(parentCmd, kmd),
 					"depth":   fmt.Sprintf("%d", depth),
@@ -105,6 +115,10 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 					"type":    fmt.Sprintf("%T", skript),
 				},
 				Run: func(cmd *cobra.Command, args []string) {
+					if wantsHelp(args) {
+						cmd.Help()
+						return
+					}
 					warnIfOverride(cmd)
 					ident := fmt.Sprintf("snippet: %s", cmd.CommandPath())
 					strInt := fmt.Sprintf("%d", skript)
@@ -124,10 +138,12 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 			cmd := &cobra.Command{
 				Use:   kmd,
 				Short: "snippet " + kmdPath(parentCmd, kmd),
-				// A snippet is a shell script: its flags are its own. Without
-				// this, cobra rejects `clog build dev --fast` before the script
-				// ever sees it. Known flags (--help) still work.
-				FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
+				// A snippet is a shell script: its flags are its own, and it
+				// needs the raw argv. Whitelisting unknown flags stops the
+				// error but cobra still consumes them, so `clog build dev
+				// --fast` would reach the script as `dev`. help is intercepted
+				// in Run so `clog <snippet> --help` still works.
+				DisableFlagParsing: true,
 				Annotations: map[string]string{
 					"command": kmdPath(parentCmd, kmd),
 					"depth":   fmt.Sprintf("%d", depth),
@@ -136,6 +152,10 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 					"type":    fmt.Sprintf("%T", skript),
 				},
 				Run: func(cmd *cobra.Command, args []string) {
+					if wantsHelp(args) {
+						cmd.Help()
+						return
+					}
 					warnIfOverride(cmd)
 					ident := fmt.Sprintf("snippet: %s", cmd.CommandPath())
 					slog.Debug(fmt.Sprintf("snippet: %s\n$ %s\n", ident, skript))
