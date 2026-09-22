@@ -71,19 +71,19 @@ var stackTypeDefaults = map[string]stackDefaults{
 		Make:  []string{"hugo", "ko"},
 	},
 	StackGolang: {
-		Tools: []string{"golang", "trivy"},
+		Tools: []string{"golang", "trivy", "golangci-lint", "staticcheck"},
 		Watch: "go run .",
 		Chk:   []string{"pre-build", "lint", "test", "scan"},
 		Make:  []string{"golang"},
 	},
 	StackGolangLib: {
-		Tools: []string{"golang", "trivy"},
+		Tools: []string{"golang", "trivy", "golangci-lint", "staticcheck"},
 		Watch: "gotestsum --watch",
 		Chk:   []string{"pre-build", "lint", "test", "scan"},
 		Make:  []string{"golang"},
 	},
 	StackContainer: {
-		Tools: []string{"golang", "ko", "trivy"},
+		Tools: []string{"golang", "ko", "trivy", "golangci-lint", "staticcheck"},
 		Watch: "docker compose watch",
 		Chk:   []string{"pre-build", "lint", "test", "scan"},
 		Make:  []string{"golang", "ko"},

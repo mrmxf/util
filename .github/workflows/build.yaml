@@ -50,6 +50,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      scan_files: ${{ steps.scan.outputs.files }}
     steps:
       - name: prepare (checkout, go, clog, ci.policy)
         uses: mrmxf/util/.github/actions/clog-prepare@workflows-v1
@@ -95,14 +97,30 @@ jobs:
             clog ci require build || exit 1
             clog build "$build_mode" $BUILD_STACK'
 
-      # One upload, outside any loop: the sweeps run inside `clog build` as
-      # check phases and write SARIF to tmp/scan, so the workflow does not need
-      # to iterate targets - which a `uses:` step cannot do anyway.
-      - name: publish scan results
-        if: always() && env.do_build == 'true' && hashFiles('tmp/scan/*.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+      # The sweeps run inside `clog build` as check phases and write SARIF to
+      # tmp/scan, so the workflow does not iterate targets - which a `uses:`
+      # step cannot do anyway. It cannot upload the directory either: since
+      # 2025-07 GitHub rejects several SARIF runs sharing one category, and
+      # upload-sarif takes a single category per call. So the files are listed
+      # here and published by the matrix job below, one category each.
+      - name: collect scan results
+        id: scan
+        if: always() && env.do_build == 'true'
+        run: |
+          files='[]'
+          if ls tmp/scan/*.sarif >/dev/null 2>&1; then
+            files="$(cd tmp/scan && ls *.sarif | jq -R . | jq -sc .)"
+          fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          clog Log -I "scan results: $files"
+
+      - name: upload scan results
+        if: always() && steps.scan.outputs.files != '[]'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          sarif_file: tmp/scan
+          name: scan-sarif
+          retention-days: 2
+          path: tmp/scan
 
       - name: upload artifact ${{ env.ci_artifact }}
         if: env.do_build == 'true' && env.ci_artifact != ''
@@ -122,3 +140,29 @@ jobs:
           clog ci run -- bash -c '
             [ -z "${HOOK_SLACK:-}" ] && { clog Log -W "HOOK_SLACK not set - no Slack notify"; exit 0; }
             clog SlackStash "${ci_title:-build} ($build_mode)" --md "$MD"'
+
+  # One SARIF, one category, one call - the only shape upload-sarif accepts.
+  # fail-fast is off so one malformed sweep does not hide the others.
+  publish-scan:
+    needs: [build]
+    if: always() && needs.build.outputs.scan_files != '[]' && needs.build.outputs.scan_files != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJSON(needs.build.outputs.scan_files) }}
+    steps:
+      - name: download scan results
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: scan-sarif
+          path: tmp/scan
+
+      - name: publish ${{ matrix.file }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tmp/scan/${{ matrix.file }}
+          category: ${{ matrix.file }}

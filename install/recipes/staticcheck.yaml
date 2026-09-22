@@ -1,0 +1,33 @@
+staticcheck:
+  description: "staticcheck — Go static analysis (all platforms via go install)"
+  check:
+    name: "staticcheck is installed"
+    try:
+      - "staticcheck --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  staticcheck is installed"'
+    else: 'clog Log -W "  staticcheck not found — install with: clog Install staticcheck"'
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: go-install
+        import: "honnef.co/go/tools/cmd/staticcheck@latest"
+    darwin/amd64:
+      install:
+        strategy: go-install
+        import: "honnef.co/go/tools/cmd/staticcheck@latest"
+    linux-deb/arm64:
+      install:
+        strategy: go-install
+        import: "honnef.co/go/tools/cmd/staticcheck@latest"
+    linux-deb/amd64:
+      install:
+        strategy: go-install
+        import: "honnef.co/go/tools/cmd/staticcheck@latest"
+    linux-rpm/arm64:
+      install:
+        strategy: go-install
+        import: "honnef.co/go/tools/cmd/staticcheck@latest"
+    linux-rpm/amd64:
+      install:
+        strategy: go-install
+        import: "honnef.co/go/tools/cmd/staticcheck@latest"
