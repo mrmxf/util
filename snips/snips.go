@@ -93,6 +93,10 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 			cmd := &cobra.Command{
 				Use:   kmd,
 				Short: kmdPath(parentCmd, kmd),
+				// A snippet is a shell script: its flags are its own. Without
+				// this, cobra rejects `clog build dev --fast` before the script
+				// ever sees it. Known flags (--help) still work.
+				FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 				Annotations: map[string]string{
 					"command": kmdPath(parentCmd, kmd),
 					"depth":   fmt.Sprintf("%d", depth),
@@ -120,6 +124,10 @@ func recurseRawMap(parentCmd *cobra.Command, group SnippetGroup, depth int, raw 
 			cmd := &cobra.Command{
 				Use:   kmd,
 				Short: "snippet " + kmdPath(parentCmd, kmd),
+				// A snippet is a shell script: its flags are its own. Without
+				// this, cobra rejects `clog build dev --fast` before the script
+				// ever sees it. Known flags (--help) still work.
+				FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 				Annotations: map[string]string{
 					"command": kmdPath(parentCmd, kmd),
 					"depth":   fmt.Sprintf("%d", depth),
