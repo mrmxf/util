@@ -104,17 +104,20 @@ Exit codes:
 			logDivider()
 		}
 
-		// Abort if checks failed in production
-		switch {
-		case flowIsProduction() && errorCount > 0:
-			msg = fmt.Sprintf("🤖 %s %s(%v) ❌ %d check errors - aborting production build", summaryFlow, checkFlow, endStep, errorCount)
+		// A failed check aborts the flow in EVERY mode, not just production.
+		//
+		// `clog build` passing means the branch is fit to push. With --fast as
+		// the explicit escape hatch, a dev build that warns and carries on
+		// leaves no real difference between `clog build dev` and
+		// `clog build dev --fast` except how much scrolling you do. The mode
+		// governs what is checked and how strictly, never whether failure
+		// counts.
+		if errorCount > 0 {
+			msg = fmt.Sprintf("🤖 %s %s(%v) ❌ %d check errors - aborting the %s build of %s (clog build --fast skips every check)",
+				summaryFlow, checkFlow, endStep, errorCount, mode, version)
+			slog.Error(msg)
 			AppendStash(summaryFlow, checkFlow, endStep, LvlError, msg)
 			return fmt.Errorf("%s", msg)
-		case errorCount > 0:
-			msg = fmt.Sprintf("🤖 %s %s(%v) ❌ %d check errors - continuing the %s build of %s", summaryFlow, checkFlow, endStep, errorCount,
-				mode, version)
-			slog.Warn(msg)
-			AppendStash(summaryFlow, checkFlow, endStep, LvlError, msg)
 		}
 
 		logDivider()
@@ -172,11 +175,22 @@ func flowCliParams(cmd *cobra.Command) (checkSteps []string, buildSteps []string
 	checkFlag, _ := cmd.Flags().GetString("check")
 	buildFlag, _ := cmd.Flags().GetString("build")
 	resetFlag, _ := cmd.Flags().GetBool("reset")
+	fastFlag, _ := cmd.Flags().GetBool("fast")
 
-	// --check flag always sets checkSteps if provided
-	if checkFlag != "" {
+	// --fast runs with an EMPTY check list. Not a shorter list, not the cheap
+	// checks only - nothing. A --fast that still lints has a meaning that
+	// depends on which phases somebody classified as slow this month, and the
+	// developer then has to carry that classification around to know what a
+	// green build proved. The promise has to be trivial to state or it is not a
+	// promise: `clog build` checked everything, `clog build --fast` checked
+	// nothing. It follows that --fast never runs in CI.
+	switch {
+	case fastFlag:
+		checkSteps = nil
+	case checkFlag != "":
+		// --check flag always sets checkSteps if provided
 		checkSteps = strings.Fields(checkFlag)
-	} else {
+	default:
 		// Fall back to CHK environment variable
 		checkSteps = getEnvTokens("CHK")
 	}
@@ -253,6 +267,7 @@ func init() {
 	flowCmd.Flags().String("check", "", "Space-separated list of check steps to run (overrides $CHK)")
 	flowCmd.Flags().String("build", "", "Space-separated list of build steps to run (overrides $MAKE)")
 	flowCmd.Flags().BoolP("reset", "R", false, "reset the stash file for a new run")
+	flowCmd.Flags().Bool("fast", false, "skip the WHOLE check list - do the minimum quickly and take the risk")
 
 	// Add flow subcommand to the main BC command
 	Command.AddCommand(flowCmd)

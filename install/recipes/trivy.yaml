@@ -1,0 +1,57 @@
+trivy:
+  description: "trivy — container, filesystem and secret scanner"
+  check:
+    name: "trivy is installed"
+    try:
+      - "trivy --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  trivy is installed"'
+    else: 'clog Log -W "  trivy not found — install with: clog Install trivy"'
+  version:
+    strategy: github-latest
+    repo: aquasecurity/trivy
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: trivy
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: trivy
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/aquasecurity/trivy/releases/download/v{version}/trivy_{version}_Linux-ARM64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: trivy
+        dest: /usr/local/bin
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/aquasecurity/trivy/releases/download/v{version}/trivy_{version}_Linux-64bit.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: trivy
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/aquasecurity/trivy/releases/download/v{version}/trivy_{version}_Linux-ARM64.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: trivy
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/aquasecurity/trivy/releases/download/v{version}/trivy_{version}_Linux-64bit.tar.gz"
+      install:
+        strategy: extract-tar-binary
+        binary: trivy
+        dest: /usr/local/bin
+        sudo: true

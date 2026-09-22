@@ -1,0 +1,124 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  build — callable workflow: one workflow for every stack.
+#
+#  Supersedes build-hugo.yaml and build-golang.yaml, which differed only in
+#  which tools they installed and which snippets they ran. `ci.stack` now knows
+#  both, so a repo declares its stack instead of choosing a workflow by name.
+#  That removes the class of bug where the workflow and the config disagree
+#  about what kind of repo this is.
+#
+#  Those two are kept for now, not deleted: the rollout is staged (pihuw, then
+#  bonfire, then www-mrmxf-com) and a repo still on @workflows-v1 must keep
+#  building until it moves.
+#
+#  Config: clog ci --config-help.
+#
+#  Caller:
+#    permissions: {contents: read, id-token: write, security-events: write}
+#    jobs:
+#      build:
+#        uses: mrmxf/util/.github/workflows/build.yaml@workflows-v1
+#        permissions: {contents: read, id-token: write, security-events: write}
+
+name: build
+run-name: ${{ github.workflow }}(${{ github.event_name }}) 🥷${{ github.actor }}
+
+on:
+  workflow_call:
+    inputs:
+      self-build: { required: false, type: boolean, default: false }
+      stack:      { required: false, type: string,  default: "" }   # '' = every stack
+      clog-ref:   { required: false, type: string,  default: "" }
+      clog-repo:  { required: false, type: string,  default: mrmxf/clog-sample }
+      production: { required: false, type: boolean, default: false }
+    secrets:
+      clog_download_token: { required: false }
+
+permissions:
+  contents: read
+  id-token: write        # OIDC → Infisical
+  security-events: write # SARIF upload below
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: prepare (checkout, go, clog, ci.policy)
+        uses: mrmxf/util/.github/actions/clog-prepare@workflows-v1
+        with:
+          self-build: ${{ inputs.self-build }}
+          production: ${{ inputs.production }}
+          clog-ref: ${{ inputs.clog-ref }}
+          clog-repo: ${{ inputs.clog-repo }}
+          token: ${{ secrets.clog_download_token }}
+
+      - name: login to the container registry (DOCKER_PAT from Infisical)
+        if: env.do_deploy == 'true'
+        run: |
+          t="$(clog ci targets --kind container-registry | head -1)"
+          [ -z "$t" ] && { clog Log -I "no container-registry target - no docker login"; exit 0; }
+          CLOG_TARGET="$t" clog ci run -- bash -c \
+            'printf %s "$DOCKER_PAT" | docker login -u "$(clog ci target get user --required)" --password-stdin'
+
+      # The stack decides the toolchain. clog never installs these behind your
+      # back during a build: a verb that quietly pulls binaries onto a machine
+      # while claiming to check a branch is the wrong supply-chain posture, so
+      # `clog build` refuses on a missing tool and prints its install line.
+      # CI therefore installs explicitly, here, where it is visible in the log.
+      - name: install toolchain (clog ci stack get tools)
+        if: env.do_build == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          clog Install slsa-verifier --verbose
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          for t in $(clog ci stack get tools --stack "${{ inputs.stack }}"); do
+            clog Install "$t" --verbose
+          done
+
+      # No --fast here, and no way to pass one: --fast makes no claim about the
+      # branch, so it has no business in CI.
+      - name: build (clog build ${{ env.build_mode }})
+        if: env.do_build == 'true'
+        env:
+          BUILD_STACK: ${{ inputs.stack }}   # '' = every stack
+        run: |
+          clog ci run -- bash -c '
+            clog ci require build || exit 1
+            clog build "$build_mode" $BUILD_STACK'
+
+      # One upload, outside any loop: the sweeps run inside `clog build` as
+      # check phases and write SARIF to tmp/scan, so the workflow does not need
+      # to iterate targets - which a `uses:` step cannot do anyway.
+      - name: publish scan results
+        if: always() && env.do_build == 'true' && hashFiles('tmp/scan/*.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tmp/scan
+
+      - name: upload artifact ${{ env.ci_artifact }}
+        if: env.do_build == 'true' && env.ci_artifact != ''
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ env.ci_artifact }}
+          retention-days: 2
+          path: |
+            kodata
+            tmp
+
+      - name: notify-team (slack, HOOK_SLACK from Infisical)
+        if: always() && env.do_build == 'true'
+        env:
+          MD: "• build ${{ env.build_mode }} ${{ env.ref }} by ${{ env.actor }}\n• ${{ env.url }}\n• run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
+        run: |
+          clog ci run -- bash -c '
+            [ -z "${HOOK_SLACK:-}" ] && { clog Log -W "HOOK_SLACK not set - no Slack notify"; exit 0; }
+            clog SlackStash "${ci_title:-build} ($build_mode)" --md "$MD"'

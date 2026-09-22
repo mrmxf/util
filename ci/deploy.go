@@ -75,6 +75,26 @@ func Deploy(env Env, cfg Config, mode, only string, dryRun bool, out io.Writer) 
 	if err != nil {
 		return err
 	}
+	// Narrow to the selected stacks' targets, so `clog deploy bonfire` never
+	// publishes an artifact this run did not build. An empty selector is every
+	// stack, and a repo with one stack never notices.
+	if len(cfg.Stack) > 0 {
+		selected, all, err := StackSelect(cfg, deployStackFlag)
+		if err != nil {
+			return err
+		}
+		owned, err := TargetsForStacks(cfg, selected, all)
+		if err != nil {
+			return err
+		}
+		var keep []string
+		for _, n := range names {
+			if contains(owned, n) {
+				keep = append(keep, n)
+			}
+		}
+		names = keep
+	}
 	if only != "" {
 		if _, ok := cfg.Targets[only]; !ok {
 			return fmt.Errorf("no ci.targets.%s in the clog config (have: %s)",
@@ -118,6 +138,7 @@ var (
 	deployTargetFlag string
 	deployDryRunFlag bool
 	deployModeFlag   string
+	deployStackFlag  string
 )
 
 var deployCmd = &cobra.Command{

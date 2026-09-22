@@ -23,6 +23,8 @@ type Config struct {
 	Require   map[string]Requirement `json:"require"`
 	Policy    Policy                 `json:"policy"`
 	Targets   map[string]Target      `json:"targets"` // deploy destinations (D-I.12)
+	Stack     StackList              `json:"stack"`   // named build units (ci/SCANNING.md)
+	Scan      ScanConfig             `json:"scan"`    // source + artifact sweeps
 }
 
 // InfisicalConfig says where a repo's secrets live and which machine identity

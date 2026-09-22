@@ -19,13 +19,21 @@ const TargetVar = "CLOG_TARGET"
 const (
 	KindRegistry       = "container-registry" // image push (+ optional webhook)
 	KindBucket         = "bucket"             // object store (S3-compatible)
-	KindPackage        = "package"            // package registry (npm, …)
 	KindCloudflarePage = "cloudflare-pages"
 	KindGitHubPages    = "github-pages"
 	KindGitLabPages    = "gitlab-pages"
+	KindGitHubRelease  = "github-release" // release assets, published with gh
+	KindGitLabRelease  = "gitlab-release" // release assets, published with glab
 )
 
-var knownKinds = []string{KindRegistry, KindBucket, KindPackage, KindCloudflarePage, KindGitHubPages, KindGitLabPages}
+// knownKinds. `package` was removed: whether it meant a built tarball or a
+// source tree was never settled, no repo used it, and a kind whose scan
+// subject is unknowable is a kind that cannot have an honest default.
+var knownKinds = []string{
+	KindRegistry, KindBucket, KindCloudflarePage,
+	KindGitHubPages, KindGitLabPages,
+	KindGitHubRelease, KindGitLabRelease,
+}
 
 // Target is one deploy destination: ci.targets.<name>.
 type Target struct {
@@ -35,6 +43,12 @@ type Target struct {
 	Dev     map[string]any `json:"dev"`     // per-mode data …
 	Prod    map[string]any `json:"prod"`    // … read with `clog ci target get`
 	Comment string         `json:"comment,omitempty"`
+	// Stack binds the target to one ci.stack entry, so `clog deploy bonfire`
+	// never publishes an artifact this run did not build. Empty means the first
+	// stack, so a single-stack repo never learns the field exists.
+	Stack string `json:"stack"`
+	// Scan overrides the artifact sweep the kind would otherwise supply.
+	Scan ScanAxis `json:"scan"`
 }
 
 // data returns the target's data for a mode.
