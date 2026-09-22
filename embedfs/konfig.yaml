@@ -145,7 +145,7 @@ check:
       - name: lint
         try: |
           ERR=0
-          for s in $(clog ci stack); do
+          for s in $(clog ci stack get names --stack "${CLOG_STACK:-}"); do
             t="$(clog ci stack get type --stack "$s")"
             case "$t" in
               hugo)
@@ -215,7 +215,7 @@ check:
       - name: artifact sweeps
         try: |
           ERR=0
-          for t in $(clog ci scan --list-targets); do
+          for t in $(clog ci scan --list-targets --stack "${CLOG_STACK:-}"); do
             eval "$(clog ci scan --format env --target "$t")" || { ERR=1; continue; }
             [ "$scan_artifact_vuln" = "none" ] && [ "$scan_artifact_secrets" != "true" ] && continue
             case "$scan_artifact_vuln" in
@@ -384,6 +384,9 @@ snippets:
   build: |
     eval "$(clog verb-args "$@")" || exit 1
     clog ci stack echo building --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
+    # check phases run per stack too: `clog build bonfire` must not lint, or
+    # scan the artifacts of, a stack it did not build.
+    export CLOG_STACK="$VERB_STACK"
     MAKE="$(clog ci stack get make --stack "$VERB_STACK")" || exit 1
     if [ -n "$VERB_FAST" ]; then
       clog BC flow --reset --fast --build "$MAKE"
