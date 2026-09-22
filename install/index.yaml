@@ -37,5 +37,7 @@ tools:
     recipepath: "recipes/prometheus.yaml"
   slsa-verifier:
     recipepath: "recipes/slsa-verifier.yaml"
+  trivy:
+    recipepath: "recipes/trivy.yaml"
   yq:
     recipepath: "recipes/yq.yaml"
