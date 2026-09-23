@@ -174,8 +174,8 @@ var (
 )
 
 var targetsCmd = &cobra.Command{
-	Use:          "targets [--kind <kind>]",
-	Short:        "list the deploy targets used in this run's mode, one per line",
+	Use:          "list [--kind <kind>]",
+	Short:        "print the deploy targets used in this run's mode, one per line",
 	Long:         targetsHelp,
 	SilenceUsage: true,
 	Args:         cobra.NoArgs,
@@ -199,16 +199,23 @@ var targetsCmd = &cobra.Command{
 	},
 }
 
+// targetCmd is the namespace: `clog CI target <verb>`.
 var targetCmd = &cobra.Command{
-	Use:          "target get <key>",
+	Use:          "target",
+	Short:        "the deploy destinations in ci.targets",
+	Long:         targetsHelp,
+	SilenceUsage: true,
+	Run:          ciHelpRun,
+}
+
+// targetGetCmd - `clog CI target get <key>`: one value from $CLOG_TARGET.
+var targetGetCmd = &cobra.Command{
+	Use:          "get <key>",
 	Short:        "print one value from $CLOG_TARGET's data for this run's mode",
 	Long:         targetsHelp,
 	SilenceUsage: true,
-	Args:         cobra.ExactArgs(2),
+	Args:         cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if args[0] != "get" {
-			return fmt.Errorf("unknown `ci target` sub-command %q (want `get <key>`)", args[0])
-		}
 		cfg, err := LoadConfig()
 		if err != nil {
 			return err
@@ -218,7 +225,7 @@ var targetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		val, err := TargetGet(env, cfg, d.Mode, strings.TrimSpace(env.Getenv(TargetVar)), args[1], targetGetRequire)
+		val, err := TargetGet(env, cfg, d.Mode, strings.TrimSpace(env.Getenv(TargetVar)), args[0], targetGetRequire)
 		if err != nil {
 			return err
 		}

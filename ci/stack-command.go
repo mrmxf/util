@@ -16,9 +16,10 @@ var (
 	stackEchoWatchFlag bool
 )
 
+// stackCmd is the namespace: `clog CI stack <verb>`.
 var stackCmd = &cobra.Command{
-	Use:   "stack [get <tools|watch|chk|make>] [echo <verb>] [--stack <name|all>]",
-	Short: "list this repo's stacks, or read one resolved setting",
+	Use:   "stack",
+	Short: "the named build units in ci.stack",
 	Long: `ci stack - the named build units in ci.stack.
 
 With no arguments it lists every stack name, in declaration order. The first is
@@ -33,53 +34,30 @@ that one. ` + "`tools`" + `, ` + "`chk`" + ` and ` + "`make`" + ` are unioned ac
 stacks in declaration order and deduplicated, so a phase named by two stacks
 runs once. ` + "`watch`" + ` cannot be unioned and needs a single stack.`,
 	SilenceUsage: true,
-	Args:         cobra.RangeArgs(0, 2),
+	Run:          ciHelpRun,
+}
+
+// stackListCmd - `clog CI stack list [tools|chk|make|names]`: zero or more
+// values. With no noun it lists the stack names themselves.
+var stackListCmd = &cobra.Command{
+	Use:          "list [tools|chk|make|names]",
+	Short:        "print stack names, or one resolved list, one per line",
+	SilenceUsage: true,
+	Args:         cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := LoadConfig()
 		if err != nil {
 			return err
 		}
 		out := cmd.OutOrStdout()
-
-		if len(args) == 2 && args[0] == "echo" {
-			verb := args[1]
-			if stackEchoWatchFlag {
-				chosen, all, err := StackWatch(cfg, stackSelectFlag)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintln(out, StackEcho(verb, []Stack{chosen}, all, stackEchoModeFlag))
-				return nil
-			}
-			selected, all, err := StackSelect(cfg, stackSelectFlag)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintln(out, StackEcho(verb, selected, all, stackEchoModeFlag))
-			return nil
-		}
-
 		if len(args) == 0 {
 			stacks, err := Stacks(cfg)
 			if err != nil {
 				return err
 			}
-			for _, s := range stacks {
-				fmt.Fprintln(out, s.Name)
+			for _, st := range stacks {
+				fmt.Fprintln(out, st.Name)
 			}
-			return nil
-		}
-		if args[0] != "get" || len(args) != 2 {
-			return fmt.Errorf("unknown `ci stack` sub-command %q (want `get <tools|watch|chk|make>` or `echo <verb>`)", strings.Join(args, " "))
-		}
-
-		key := args[1]
-		if key == "watch" {
-			s, _, err := StackWatch(cfg, stackSelectFlag)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintln(out, s.Watch)
 			return nil
 		}
 		selected, _, err := StackSelect(cfg, stackSelectFlag)
@@ -87,7 +65,7 @@ runs once. ` + "`watch`" + ` cannot be unioned and needs a single stack.`,
 			return err
 		}
 		var vals []string
-		switch key {
+		switch args[0] {
 		case "tools":
 			vals = StackTools(selected)
 		case "chk":
@@ -96,18 +74,85 @@ runs once. ` + "`watch`" + ` cannot be unioned and needs a single stack.`,
 			vals = StackMake(selected)
 		case "names":
 			vals = StackNames(selected)
+		default:
+			return fmt.Errorf("unknown `CI stack list` key %q (want tools, chk, make or names)", args[0])
+		}
+		// A list prints one value per line so `for x in $(...)` and `read`
+		// both work. The space-joined form the dispatcher used could not
+		// carry a value containing a space.
+		for _, v := range vals {
+			fmt.Fprintln(out, v)
+		}
+		return nil
+	},
+}
+
+// stackGetCmd - `clog CI stack get <watch|type>`: exactly one value.
+var stackGetCmd = &cobra.Command{
+	Use:          "get <watch|type>",
+	Short:        "print one resolved setting for a single stack",
+	SilenceUsage: true,
+	Args:         cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := LoadConfig()
+		if err != nil {
+			return err
+		}
+		out := cmd.OutOrStdout()
+		switch args[0] {
+		case "watch":
+			st, _, err := StackWatch(cfg, stackSelectFlag)
+			if err != nil {
+				return err
+			}
+			// An unset value prints nothing, not a blank line: the `get`
+			// contract is that an empty capture means unset.
+			if st.Watch != "" {
+				fmt.Fprintln(out, st.Watch)
+			}
+			return nil
 		case "type":
+			selected, _, err := StackSelect(cfg, stackSelectFlag)
+			if err != nil {
+				return err
+			}
 			if len(selected) != 1 {
-				return fmt.Errorf("`ci stack get type` needs one stack (--stack <name>); this repo has %s",
+				return fmt.Errorf("`CI stack get type` needs one stack (--stack <name>); this repo has %s",
 					strings.Join(StackNames(selected), ", "))
 			}
-			vals = []string{selected[0].Type}
+			fmt.Fprintln(out, selected[0].Type)
+			return nil
 		default:
-			return fmt.Errorf("unknown `ci stack get` key %q (want tools, watch, chk, make, names or type)", key)
+			return fmt.Errorf("unknown `CI stack get` key %q (want watch or type)", args[0])
 		}
-		if len(vals) > 0 {
-			fmt.Fprintln(out, strings.Join(vals, " "))
+	},
+}
+
+// stackEchoCmd - `clog CI stack echo <verb>`: the banner a verb prints.
+var stackEchoCmd = &cobra.Command{
+	Use:          "echo <verb>",
+	Short:        "print the one-line banner naming what a verb is about to act on",
+	SilenceUsage: true,
+	Args:         cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := LoadConfig()
+		if err != nil {
+			return err
 		}
+		out := cmd.OutOrStdout()
+		if stackEchoWatchFlag {
+			chosen, all, err := StackWatch(cfg, stackSelectFlag)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(out, StackEcho(args[0], []Stack{chosen}, all, stackEchoModeFlag))
+			return nil
+		}
+		selected, all, err := StackSelect(cfg, stackSelectFlag)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(out, StackEcho(args[0], selected, all, stackEchoModeFlag))
 		return nil
 	},
 }

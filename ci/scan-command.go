@@ -11,15 +11,14 @@ import (
 )
 
 var (
-	scanFormatFlag      string
-	scanTargetFlag      string
-	scanModeFlag        string
-	scanStackFlag       string
-	scanListTargetsFlag bool
+	scanFormatFlag string
+	scanTargetFlag string
+	scanModeFlag   string
+	scanStackFlag  string
 )
 
 var scanCmd = &cobra.Command{
-	Use:   "scan [--target <name>] [--format env|json]",
+	Use:   "show [--target <name>] [--format env|json]",
 	Short: "print the resolved security sweep for the worktree, or for one target",
 	Long: `ci scan - what to examine, not which tool examines it.
 
@@ -53,25 +52,6 @@ write ` + "`scan: {vuln: none}`" + ` rather than have silence mean "not scanned"
 			mode = d.Mode
 		}
 
-		// --list-targets drives the artifact sweep loop in a check block. It
-		// deliberately lists prod-only targets on a dev build: `ci targets`
-		// filters by deploy-mode membership, and enumerating scans that way
-		// would leave exactly those targets unscanned on every pull request.
-		if scanListTargetsFlag {
-			selected, all, err := StackSelect(cfg, scanStackFlag)
-			if err != nil {
-				return err
-			}
-			names, err := ScanTargets(cfg, selected, all)
-			if err != nil {
-				return err
-			}
-			for _, n := range names {
-				fmt.Fprintln(cmd.OutOrStdout(), n)
-			}
-			return nil
-		}
-
 		axis, prefix := ScanAxis{}, "scan_source"
 		if scanTargetFlag == "" {
 			axis, err = SourceScan(cfg)
@@ -95,5 +75,41 @@ write ` + "`scan: {vuln: none}`" + ` rather than have silence mean "not scanned"
 		default:
 			return fmt.Errorf("unknown --format %q (want env or json)", scanFormatFlag)
 		}
+	},
+}
+
+// scanListCmd - `clog CI scan list targets`: the targets an artifact sweep
+// should visit, one per line.
+//
+// It deliberately lists prod-only targets on a dev build. `CI target list`
+// filters by deploy-mode membership, and enumerating sweeps that way would
+// leave exactly those targets unscanned on every pull request - which is the
+// shape of the bug that made scanning conditional on deploying in the first
+// place.
+var scanListCmd = &cobra.Command{
+	Use:          "list targets",
+	Short:        "print the targets an artifact sweep should visit, one per line",
+	SilenceUsage: true,
+	Args:         cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if args[0] != "targets" {
+			return fmt.Errorf("unknown `CI scan list` noun %q (want targets)", args[0])
+		}
+		cfg, err := LoadConfig()
+		if err != nil {
+			return err
+		}
+		selected, all, err := StackSelect(cfg, scanStackFlag)
+		if err != nil {
+			return err
+		}
+		names, err := ScanTargets(cfg, selected, all)
+		if err != nil {
+			return err
+		}
+		for _, n := range names {
+			fmt.Fprintln(cmd.OutOrStdout(), n)
+		}
+		return nil
 	},
 }

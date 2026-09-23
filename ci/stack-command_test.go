@@ -5,6 +5,7 @@ package ci
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -17,19 +18,30 @@ func runCI(t *testing.T, cfg Config, cmd string, args ...string) (string, error)
 	LoadConfig = func() (Config, error) { return cfg, nil }
 	t.Cleanup(func() { LoadConfig = orig })
 
+	// Resolve the real leaf from the command path rather than reaching for a
+	// known command variable: the verbs are subcommands now, not arguments,
+	// so the tree is what decides which code runs.
 	var out bytes.Buffer
-	target := stackCmd
-	if cmd == "scan" {
-		target = scanCmd
+	path := append([]string{cmd}, args...)
+	target, rest, err := Command.Find(path)
+	if err != nil {
+		return "", err
 	}
 	target.SetOut(&out)
 	target.SetErr(&out)
-	if err := target.ParseFlags(args); err != nil {
+	if err := target.ParseFlags(rest); err != nil {
 		return out.String(), err
 	}
-	err := target.RunE(target, target.Flags().Args())
+	if target.RunE == nil {
+		return out.String(), fmt.Errorf("`clog CI %s` is a namespace, not a verb", strings.Join(path, " "))
+	}
+	err = target.RunE(target, target.Flags().Args())
 	return out.String(), err
 }
+
+// words makes an assertion about content rather than layout, so a list that
+// prints one value per line and one that joins with spaces both pass.
+func words(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 func verbFixture() Config {
 	return Config{
@@ -48,37 +60,36 @@ func resetStackFlags(t *testing.T) {
 	t.Helper()
 	stackSelectFlag, stackEchoModeFlag, stackEchoWatchFlag = "", "", false
 	scanFormatFlag, scanTargetFlag, scanModeFlag, scanStackFlag = "env", "", "", ""
-	scanListTargetsFlag = false
 }
 
 func TestStackCommandSurface(t *testing.T) {
 	cfg := verbFixture()
 
 	resetStackFlags(t)
-	got, err := runCI(t, cfg, "stack")
+	got, err := runCI(t, cfg, "stack", "list")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Fields(got)[0] != "bonfire" {
-		t.Errorf("`ci stack` = %q, want declaration order with bonfire first", got)
+		t.Errorf("`CI stack list` = %q, want declaration order with bonfire first", got)
 	}
 
 	resetStackFlags(t)
-	got, err = runCI(t, cfg, "stack", "get", "chk", "--stack", "bonfire")
+	got, err = runCI(t, cfg, "stack", "list", "chk", "--stack", "bonfire")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(got) != "pre-build lint scan" {
+	if words(got) != "pre-build lint scan" {
 		t.Errorf("chk for bonfire = %q", got)
 	}
 
 	// The union across both stacks runs each phase once.
 	resetStackFlags(t)
-	got, err = runCI(t, cfg, "stack", "get", "chk")
+	got, err = runCI(t, cfg, "stack", "list", "chk")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(got) != "pre-build lint scan test" {
+	if words(got) != "pre-build lint scan test" {
 		t.Errorf("chk union = %q", got)
 	}
 }
@@ -120,7 +131,7 @@ func TestScanCommandSurface(t *testing.T) {
 	cfg := verbFixture()
 
 	resetStackFlags(t)
-	got, err := runCI(t, cfg, "scan", "--mode", "prod")
+	got, err := runCI(t, cfg, "scan", "show", "--mode", "prod")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +142,7 @@ func TestScanCommandSurface(t *testing.T) {
 	}
 
 	resetStackFlags(t)
-	got, err = runCI(t, cfg, "scan", "--mode", "prod", "--target", "parking")
+	got, err = runCI(t, cfg, "scan", "show", "--mode", "prod", "--target", "parking")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +152,7 @@ func TestScanCommandSurface(t *testing.T) {
 
 	// The loop the scan check block runs.
 	resetStackFlags(t)
-	got, err = runCI(t, cfg, "scan", "--list-targets")
+	got, err = runCI(t, cfg, "scan", "list", "targets")
 	if err != nil {
 		t.Fatal(err)
 	}

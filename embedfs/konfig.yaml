@@ -68,36 +68,39 @@ check:
 # ▬▬▬ pre-build check - generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
   pre-build:
     blocks:
-      - finally: clog BC stashLog -1 check -2 pre-build -I "        branch    $(clog BC git branch)"
-      - finally: clog BC stashLog -1 check -2 pre-build -I "       version    $(clog BC genBuildinfo --format version)"
-      - finally: clog BC stashLog -1 check -2 pre-build -I "      tag-prod    $(clog BC git tag prod)"
-      - finally: clog BC stashLog -1 check -2 pre-build -I "          mode    $(clog ci mode)"
-      - finally: clog BC stashLog -1 check -2 pre-build -I "     hash-head    $(clog BC git hash head)"
+      - finally: clog BC stash log -1 check -2 pre-build -I "        branch    $(clog BC git get branch)"
+      - finally: clog BC stash log -1 check -2 pre-build -I "       version    $(clog BC gen buildinfo --format version)"
+      - finally: clog BC stash log -1 check -2 pre-build -I "      tag-prod    $(clog BC git tag get prod)"
+      - finally: clog BC stash log -1 check -2 pre-build -I "          mode    $(clog CI mode)"
+      - finally: clog BC stash log -1 check -2 pre-build -I "     hash-head    $(clog BC git hash get head)"
       - try: |
           # CI always checks out clean — skip tree checks to avoid false warnings
           [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
-          clog BC git tree clean
-        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree clean"  -I "Ok working tree clean"
+          clog BC git tree is clean
+        ok:    clog BC stash log -1 check -2 pre-build -3 "tree clean"  -I "Ok working tree clean"
         catch: |
           XIT=0; FLAG="-W"
-          [ "$(clog ci mode)" = "prod" ] && XIT=1 && FLAG="-E"
-          clog BC stashLog -1 check -2 pre-build -3 "tree clean" $FLAG "   working tree NOT clean"
+          [ "$(clog CI mode)" = "prod" ] && XIT=1 && FLAG="-E"
+          clog BC stash log -1 check -2 pre-build -3 "tree clean" $FLAG "   working tree NOT clean"
           exit $XIT
       - try: |
           [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
-          clog BC git tree ahead
-        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree ahead"  -I "Ok working tree not ahead of origin"
-        catch: clog BC stashLog -1 check -2 pre-build -3 "tree ahead"  -W "   working tree is ahead of origin"
+          # the check wants "not ahead"; `is ahead` is true when it IS ahead
+          ! clog BC git tree is ahead
+        ok:    clog BC stash log -1 check -2 pre-build -3 "tree ahead"  -I "Ok working tree not ahead of origin"
+        catch: clog BC stash log -1 check -2 pre-build -3 "tree ahead"  -W "   working tree is ahead of origin"
       - try: |
           [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
-          clog BC git tree behind
-        ok:    clog BC stashLog -1 check -2 pre-build -3 "tree behind" -I "Ok working tree not behind origin"
-        catch: clog BC stashLog -1 check -2 pre-build -3 "tree behind" -W "   working tree is behind origin"
+          # the check wants "not behind"; `is behind` is true when it IS behind
+          ! clog BC git tree is behind
+        ok:    clog BC stash log -1 check -2 pre-build -3 "tree behind" -I "Ok working tree not behind origin"
+        catch: clog BC stash log -1 check -2 pre-build -3 "tree behind" -W "   working tree is behind origin"
       - try: |
           [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
-          clog BC git tree unstaged
-        ok:    clog BC stashLog -1 check -2 pre-build -3 "unstaged"    -I "Ok working tree has no dangling changes"
-        catch: clog BC stashLog -1 check -2 pre-build -3 "unstaged"    -W "   working tree has unstaged changes"
+          # the check wants "nothing dangling"; `has unstaged` is true when there are
+          ! clog BC git tree has unstaged
+        ok:    clog BC stash log -1 check -2 pre-build -3 "unstaged"    -I "Ok working tree has no dangling changes"
+        catch: clog BC stash log -1 check -2 pre-build -3 "unstaged"    -W "   working tree has unstaged changes"
 
 # ▬▬▬▬ golang checker generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
   golang:
@@ -109,13 +112,13 @@ check:
           # non-zero - and a section fails only when its catch does. So this gate
           # reported success whatever staticcheck found. `|| exit 1` is the fix.
           which staticcheck >/dev/null 2>&1 || {
-            clog BC stashLog -1 check -2 golang -3 "staticcheck" -E "   staticcheck is not installed - go install honnef.co/go/tools/cmd/staticcheck@latest"
+            clog BC stash log -1 check -2 golang -3 "staticcheck" -E "   staticcheck is not installed - go install honnef.co/go/tools/cmd/staticcheck@latest"
             exit 1
           }
           staticcheck ./... || exit 1
-        ok: clog BC stashLog -1 check -2 golang -3 "staticcheck" -S "   staticcheck passed"
+        ok: clog BC stash log -1 check -2 golang -3 "staticcheck" -S "   staticcheck passed"
         catch: |
-          clog BC stashLog -1 check -2 golang -3 "staticcheck" -E "   staticcheck failed"
+          clog BC stash log -1 check -2 golang -3 "staticcheck" -E "   staticcheck failed"
           echo "$STDOUTERR"
           exit 1
       - name: golangci-lint
@@ -126,13 +129,13 @@ check:
           # binaries onto the machine while claiming to check a branch is the
           # wrong supply-chain posture. Refuse, name the tool, print the line.
           which golangci-lint >/dev/null 2>&1 || {
-            clog BC stashLog -1 check -2 golang -3 golangci -E "golangci-lint is not installed - clog Install golangci-lint"
+            clog BC stash log -1 check -2 golang -3 golangci -E "golangci-lint is not installed - clog Install golangci-lint"
             exit 1
           }
           golangci-lint run --timeout=5m
-        ok:   clog BC stashLog -1 check -2 golang -3 golangci -S "golangci-lint passed"
+        ok:   clog BC stash log -1 check -2 golang -3 golangci -S "golangci-lint passed"
         catch: |
-          clog BC stashLog -1 check -2 golang -3 golangci -E "golangci-lint found issues"
+          clog BC stash log -1 check -2 golang -3 golangci -E "golangci-lint found issues"
           exit 1
 # ▬▬▬▬ lint - one check phase, dispatched per stack ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
 #  Lint examines the SOURCE, and a repo has as many source subjects as it has
@@ -145,11 +148,11 @@ check:
       - name: lint
         try: |
           ERR=0
-          for s in $(clog ci stack get names --stack "${CLOG_STACK:-}"); do
-            t="$(clog ci stack get type --stack "$s")"
+          for s in $(clog CI stack list names --stack "${CLOG_STACK:-}"); do
+            t="$(clog CI stack get type --stack "$s")"
             case "$t" in
               hugo)
-                clog BC stashLog -1 check -2 lint -3 "$s" -I "lint $s (hugo): no linter configured yet"
+                clog BC stash log -1 check -2 lint -3 "$s" -I "lint $s (hugo): no linter configured yet"
                 ;;
               golang|golang-lib|container)
                 clog Check golang || ERR=1
@@ -159,14 +162,14 @@ check:
                 GOFLAGS="-tags=tinygo" clog Check golang || ERR=1
                 ;;
               *)
-                clog BC stashLog -1 check -2 lint -3 "$s" -W "no lint rule for stack type $t"
+                clog BC stash log -1 check -2 lint -3 "$s" -W "no lint rule for stack type $t"
                 ;;
             esac
           done
           exit $ERR
-        ok:    clog BC stashLog -1 check -2 lint -S "lint passed"
+        ok:    clog BC stash log -1 check -2 lint -S "lint passed"
         catch: |
-          clog BC stashLog -1 check -2 lint -E "lint found issues"
+          clog BC stash log -1 check -2 lint -E "lint found issues"
           exit 1
 
 # ▬▬▬▬ scan - two axes: the worktree, then each target's artifact ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
@@ -180,15 +183,15 @@ check:
       - name: trivy present
         try: |
           which trivy >/dev/null 2>&1 || {
-            clog BC stashLog -1 check -2 scan -3 trivy -E "trivy is not installed - clog Install trivy"
+            clog BC stash log -1 check -2 scan -3 trivy -E "trivy is not installed - clog Install trivy"
             exit 1
           }
-        ok:    clog BC stashLog -1 check -2 scan -3 trivy -S "trivy present"
+        ok:    clog BC stash log -1 check -2 scan -3 trivy -S "trivy present"
         catch: exit 1
 
       - name: source sweep
         try: |
-          eval "$(clog ci scan --format env)"
+          eval "$(clog CI scan show --format env)"
           mkdir -p tmp/scan
           ERR=0
           if [ "$scan_source_vuln" != "none" ]; then
@@ -206,17 +209,17 @@ check:
               --output tmp/scan/source-secret.sarif "$scan_source_ref" || ERR=1
           fi
           exit $ERR
-        ok:    clog BC stashLog -1 check -2 scan -3 source -S "source sweep clean"
+        ok:    clog BC stash log -1 check -2 scan -3 source -S "source sweep clean"
         catch: |
-          clog BC stashLog -1 check -2 scan -3 source -E "source sweep found problems"
+          clog BC stash log -1 check -2 scan -3 source -E "source sweep found problems"
           echo "$STDOUTERR"
           exit 1
 
       - name: artifact sweeps
         try: |
           ERR=0
-          for t in $(clog ci scan --list-targets --stack "${CLOG_STACK:-}"); do
-            eval "$(clog ci scan --format env --target "$t")" || { ERR=1; continue; }
+          for t in $(clog CI scan list targets --stack "${CLOG_STACK:-}"); do
+            eval "$(clog CI scan show --format env --target "$t")" || { ERR=1; continue; }
             [ "$scan_artifact_vuln" = "none" ] && [ "$scan_artifact_secrets" != "true" ] && continue
             case "$scan_artifact_vuln" in
               image)
@@ -237,9 +240,9 @@ check:
             fi
           done
           exit $ERR
-        ok:    clog BC stashLog -1 check -2 scan -3 artifact -S "artifact sweeps clean"
+        ok:    clog BC stash log -1 check -2 scan -3 artifact -S "artifact sweeps clean"
         catch: |
-          clog BC stashLog -1 check -2 scan -3 artifact -E "an artifact sweep found problems"
+          clog BC stash log -1 check -2 scan -3 artifact -E "an artifact sweep found problems"
           echo "$STDOUTERR"
           exit 1
 
@@ -249,85 +252,85 @@ check:
       - name: wsl Zone.Identifier files
         try: |
           [ -z "$(find . -name '*Zone.Identifier' -not -path '*/node_modules/*')" ]
-        ok: clog BC stashLog -1 check -2 hugo -3 "Zone.Identifier" -I "no Zone.Identifier present"
+        ok: clog BC stash log -1 check -2 hugo -3 "Zone.Identifier" -I "no Zone.Identifier present"
         catch: |
           eval "$(clog Crayon)"
           n=$(find . -name '*Zone.Identifier' -not -path '*/node_modules/*'|wc -l)
-          clog   BC stashLog -1 check -2 hugo -3 "Zone.Identifier" -E "Delete $n Zone.Identifier files made by Windows"
+          clog   BC stash log -1 check -2 hugo -3 "Zone.Identifier" -E "Delete $n Zone.Identifier files made by Windows"
           while IFS= read -r line; do
             fn="$(echo ${line:2}|cut  -d ":" -f "1")"
             id="$(echo ${line:2}|cut  -d ":" -f "2")"
-            clog BC stashLog -1 -2 hugo -3 "Zone.Identifier"  check -E "      ❌$cF $fn$cX:$cW$id"
+            clog BC stash log -1 -2 hugo -3 "Zone.Identifier"  check -E "      ❌$cF $fn$cX:$cW$id"
           done < <(find . -name '*Zone.Identifier' -not -path '*/node_modules/*')
-          clog   BC is build prod && exit 1
+          clog   BC releases is build prod && exit 1
 
       - name: golang version
-        try: clog BC semver "$(clog project needs golang)"  "$(clog project has golang)"
-        ok: clog  BC stashLog -1 check -2 hugo -3 "golang version" -I "golang $(clog project has golang) is up to date"
+        try: clog BC semver satisfies "$(clog project needs golang)"  "$(clog project has golang)"
+        ok: clog  BC stash log -1 check -2 hugo -3 "golang version" -I "golang $(clog project has golang) is up to date"
         catch: |
-          clog    BC stashLog -1 check -2 hugo -3 "golang version" -W "golang: bad version. go.mod needs $(clog project needs golang), got $(clog project has golang)"
+          clog    BC stash log -1 check -2 hugo -3 "golang version" -W "golang: bad version. go.mod needs $(clog project needs golang), got $(clog project has golang)"
 
       - name: hugo version
-        try: clog BC semver "$(clog project needs hugo)"  "$(clog project has hugo)"
-        ok: clog  BC stashLog -1 check -2 hugo -3 "hugo version" -I "hugo $(clog project has hugo) is up to date"
+        try: clog BC semver satisfies "$(clog project needs hugo)"  "$(clog project has hugo)"
+        ok: clog  BC stash log -1 check -2 hugo -3 "hugo version" -I "hugo $(clog project has hugo) is up to date"
         catch:  |
-          clog    BC stashLog -1 check -2 hugo -3 "hugo version" -W "hugo: bad version. Need $(clog project needs hugo), got $(clog project has hugo)"
+          clog    BC stash log -1 check -2 hugo -3 "hugo version" -W "hugo: bad version. Need $(clog project needs hugo), got $(clog project has hugo)"
 
       - name: git-lfs version
-        try:  clog BC semver "$(clog project has git-lfs)"     "$(clog project needs git-lfs)"
-        ok: clog BC stashLog -1 check -2 hugo -3 "git-lfs version" -I "git-lfs $(clog project has git-lfs) good"
+        try:  clog BC semver satisfies "$(clog project has git-lfs)"     "$(clog project needs git-lfs)"
+        ok: clog BC stash log -1 check -2 hugo -3 "git-lfs version" -I "git-lfs $(clog project has git-lfs) good"
         catch: |
           lfs="$(clog project has git-lfs)"
-          [ -z "$lfs" ] && clog BC stashLog -1 check -2 hugo -3 "git-lfs version" -W "git-lfs not installed"
-          [ -n "$lfs" ] && clog BC stashLog -1 check -2 hugo -3 "git-lfs version" -W "git-lfs: bad version. Need $(clog project needs git-lfs), got $(clog project has git-lfs)"
+          [ -z "$lfs" ] && clog BC stash log -1 check -2 hugo -3 "git-lfs version" -W "git-lfs not installed"
+          [ -n "$lfs" ] && clog BC stash log -1 check -2 hugo -3 "git-lfs version" -W "git-lfs: bad version. Need $(clog project needs git-lfs), got $(clog project has git-lfs)"
 
       - name: docker?
         try: which docker 2>/dev/null
-        ok: clog BC stashLog -1 check -2 hugo -3 docker -I "docker ok"
+        ok: clog BC stash log -1 check -2 hugo -3 docker -I "docker ok"
         catch: |
-          clog BC stashLog -1 check -2 hugo -3 docker -E "docker not on path"
-          [ "$(clog ci mode)" = prod ] && exit 1
+          clog BC stash log -1 check -2 hugo -3 docker -E "docker not on path"
+          [ "$(clog CI mode)" = prod ] && exit 1
 
       - name: theme replacements
         try: |
           themeReplacements="$(yq -r '.replacements' config/_default/module.yaml)"
           [[ "null" == "$themeReplacements" ]] && exit 0
           exit 1
-        ok: clog BC stashLog -1 check -2 hugo -3 theme -I "theme will be pulled from github"
+        ok: clog BC stash log -1 check -2 hugo -3 theme -I "theme will be pulled from github"
         catch: |
           activeReplacement="$(yq -r '.replacements' config/_default/module.yaml)"
-          clog BC stashLog -1 check -2 hugo -3 theme -E "local theme replacement kill github action ($activeReplacement)"
+          clog BC stash log -1 check -2 hugo -3 theme -E "local theme replacement kill github action ($activeReplacement)"
           exit 1
 
       - name: remote production ref had been specified
-        try:  '[ -z "$(clog BC git tag prod)" ] && exit 1 || exit 0'
-        ok: clog    BC stashLog -1 check -2 hugo -3 "remote ref" -I "tag($(clog BC git tag prod)) specified for production"
-        catch: clog BC stashLog -1 check -2 hugo -3 "remote ref" -E "No flow:main build:prod exists in releases.yaml";exit 1
+        try:  '[ -z "$(clog BC git tag get prod)" ] && exit 1 || exit 0'
+        ok: clog    BC stash log -1 check -2 hugo -3 "remote ref" -I "tag($(clog BC git tag get prod)) specified for production"
+        catch: clog BC stash log -1 check -2 hugo -3 "remote ref" -E "No flow:main build:prod exists in releases.yaml";exit 1
 
       - name: remote production ref exists
         try: |
-          tag="$(clog BC git tag prod)"
+          tag="$(clog BC git tag get prod)"
           [ -z "$(git ls-remote --tags 2>/dev/null|grep $tag)" ] && exit 1 || exit 0
-        ok: clog     bc stashLog -1 check -2 hugo -3 "remote ref ok" -I "tag($(clog BC git tag prod)) exists at remote origin"
-        catch: 'clog bc stashLog -1 check -2 hugo -3 "remote ref ok" -E "git ls-remote --tags missing tag $(clog BC git tag prod)";exit 1'
+        ok: clog     BC stash log -1 check -2 hugo -3 "remote ref ok" -I "tag($(clog BC git tag get prod)) exists at remote origin"
+        catch: 'clog BC stash log -1 check -2 hugo -3 "remote ref ok" -E "git ls-remote --tags missing tag $(clog BC git tag get prod)";exit 1'
 # ▬▬▬ tool check generic ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
 # Generic baseline — projects override check.tools in their .clog.yaml
   tools:
     blocks:
       - name: golang
-        try: clog BC semver "$(clog project needs golang)" "$(clog project has golang)"
-        ok:   clog BC stashLog -1 check -2 tools -3 golang -I "golang $(clog project has golang) ok"
-        catch: clog BC stashLog -1 check -2 tools -3 golang -E "wrong go version. Need $(clog project needs golang)"
+        try: clog BC semver satisfies "$(clog project needs golang)" "$(clog project has golang)"
+        ok:   clog BC stash log -1 check -2 tools -3 golang -I "golang $(clog project has golang) ok"
+        catch: clog BC stash log -1 check -2 tools -3 golang -E "wrong go version. Need $(clog project needs golang)"
       - name: yq
         try: which yq 2>/dev/null
-        ok:   clog BC stashLog -1 check -2 tools -3 yq -I "yq present"
-        catch: clog BC stashLog -1 check -2 tools -3 yq -E "yq not present"
+        ok:   clog BC stash log -1 check -2 tools -3 yq -I "yq present"
+        catch: clog BC stash log -1 check -2 tools -3 yq -E "yq not present"
       - name: aws cli v2
         try: |
           vv="$(aws --version 2>/dev/null|grep -oE '\/[0-9]+\.[0-9]+\.[0-9]+'|head -1|tr -d [/]|head -c 2)"
           [[ "2." == "$vv" ]]
-        ok:   clog BC stashLog -1 check -2 tools -3 aws -I "aws cli v2 present"
-        catch: clog BC stashLog -1 check -2 tools -3 aws -E "aws cli v2 not present."
+        ok:   clog BC stash log -1 check -2 tools -3 aws -I "aws cli v2 present"
+        catch: clog BC stash log -1 check -2 tools -3 aws -E "aws cli v2 not present."
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 #               _                       _
 #   ||_  _ _   (_)  _ __   _ __   ___  | |_   ___
@@ -375,7 +378,7 @@ snippets:
       echo "export CLOG_MODE=$VERB_MODE"
       echo "VERB_MODE=$VERB_MODE"
     else
-      m="$(clog ci mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"
+      m="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"
       echo "VERB_MODE=${m:-dev}"
     fi
     echo "VERB_STACK=$VERB_STACK"
@@ -383,37 +386,37 @@ snippets:
 
   build: |
     eval "$(clog verb-args "$@")" || exit 1
-    clog ci stack echo building --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
+    clog CI stack echo building --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
     # check phases run per stack too: `clog build bonfire` must not lint, or
     # scan the artifacts of, a stack it did not build.
     export CLOG_STACK="$VERB_STACK"
-    MAKE="$(clog ci stack get make --stack "$VERB_STACK")" || exit 1
+    MAKE="$(clog CI stack list make --stack "$VERB_STACK")" || exit 1
     if [ -n "$VERB_FAST" ]; then
       clog BC flow --reset --fast --build "$MAKE"
     else
-      CHK="$(clog ci stack get chk --stack "$VERB_STACK")" || exit 1
+      CHK="$(clog CI stack list chk --stack "$VERB_STACK")" || exit 1
       clog BC flow --reset --check "$CHK" --build "$MAKE"
     fi
 
   watch: |
     eval "$(clog verb-args "$@")" || exit 1
-    clog ci stack echo watching --stack "$VERB_STACK" --watch || exit 1
-    CMD="$(clog ci stack get watch --stack "$VERB_STACK")" || exit 1
+    clog CI stack echo watching --stack "$VERB_STACK" --watch || exit 1
+    CMD="$(clog CI stack get watch --stack "$VERB_STACK")" || exit 1
     [ -z "$CMD" ] && clog Log -E "no watch command for that stack" && exit 1
     eval "$CMD"
 
   deploy: |
     eval "$(clog verb-args "$@")" || exit 1
-    clog ci stack echo deploying --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
-    clog ci deploy --mode "$VERB_MODE" --stack "${VERB_STACK:-all}"
+    clog CI stack echo deploying --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
+    clog CI deploy --mode "$VERB_MODE" --stack "${VERB_STACK:-all}"
 
   bc-artifacts: echo "tmp/artifacts"
-  bc-main-prod-tag: yq -r 'first(.[] | select(.type=="main" and .build=="prod") | .version)' "$(clog BC releases yaml)"
+  bc-main-prod-tag: yq -r 'first(.[] | select(.type=="main" and .build=="prod") | .version)' "$(clog BC releases get path)"
   bc-log-divider: eval "$(clog Crayon)";for i in {1..8};do HR="$HR\e[09${i}m▬▬▬▬▬▬▬▬▬$cE|";done;printf "$HR$cX\n"
   # worker function instagram ------------------------------------------------------------------------------------------
   bc-instagram: |
     eval "$(clog Crayon)" # setting & highlights
-    clog BC stashLog -1 build -2 instagram  -W  "    ✖️ $cC clog instagram$cW not implemented yet$cX - come back later"
+    clog BC stash log -1 build -2 instagram  -W  "    ✖️ $cC clog instagram$cW not implemented yet$cX - come back later"
     exit 0
   # WORKER v0.8.6 - checkout the main-prod version of a repo -----------------------------------------------------------
   bc-main-prod-checkout: |
@@ -421,10 +424,10 @@ snippets:
     TAG="$(clog bc-main-prod-tag)"
 
     ERR=0
-    clog BC stashLog -1 build -2 "prod-checkout" -3 start -I "$STEP.$(((++s))).⚒️  bc-main-prod-checkout  $phase→$cF setup queries for daily build/"
-    [ -z "$TAG" ]&&clog BC stashLog -2 "prod-checkout" -3 "tag" -E "releases.yaml has no entry with type=main build=prod"&&exit (((++ERR)))
+    clog BC stash log -1 build -2 "prod-checkout" -3 start -I "$STEP.$(((++s))).⚒️  bc-main-prod-checkout  $phase→$cF setup queries for daily build/"
+    [ -z "$TAG" ]&&clog BC stash log -2 "prod-checkout" -3 "tag" -E "releases.yaml has no entry with type=main build=prod"&&exit (((++ERR)))
     git checkout "$TAG"
-    [ $? -gt 0 ]&&clog  BC stashLog -2 "prod-checkout" -3 "checkout" -E "cannot checkout to tag $cE$TAG"&&exit (((++ERR)))
+    [ $? -gt 0 ]&&clog  BC stash log -2 "prod-checkout" -3 "checkout" -E "cannot checkout to tag $cE$TAG"&&exit (((++ERR)))
 
     # we are now checked out to the production snapshot $TAG
     # releases.yaml and scripts
@@ -441,10 +444,10 @@ snippets:
       colHi="$1"; shift
       colFn="$1"; shift
 
-      [ ! -f "$src" ] && clog BC stashLog -1 build -2 deploy-s3 -3 pre-flight -W "$colHi(skip) $colFn$src$cX - not found" && return
+      [ ! -f "$src" ] && clog BC stash log -1 build -2 deploy-s3 -3 pre-flight -W "$colHi(skip) $colFn$src$cX - not found" && return
 
       size="$(du -sh $src|grep -oE '([0-9\.]+[KMGTP])')"
-      clog  BC stashLog -1 build -2 deploy-s3 -3 aws-cp -I "$colHi($size)$colFn  $src$cX → s3://$dst"
+      clog  BC stash log -1 build -2 deploy-s3 -3 aws-cp -I "$colHi($size)$colFn  $src$cX → s3://$dst"
       aws s3 cp --quiet "$src" "s3://$dst"
       return $?
     }
@@ -455,21 +458,21 @@ snippets:
 
     ERR=0
     vAws="$(aws --version 2>/dev/null|grep -oE '[0-9]+\.[0-9]+\.[0-9]+'|head -1)"
-    ((ERR+=$?)); [ $ERR -gt 0 ] && clog BC stashLog -1 build -2 deploy-s3 -3 aws-version  -E "bc-deploy-s3 cannot find aws cli"
+    ((ERR+=$?)); [ $ERR -gt 0 ] && clog BC stash log -1 build -2 deploy-s3 -3 aws-version  -E "bc-deploy-s3 cannot find aws cli"
 
     #check YAML not empty
-    [ -z "$YAML" ] && clog BC stashLog -1 build -2 deploy-s3 -3 yaml  -E "bc-deploy-s3 has no YAML entries to parse" && ((ERR++))
+    [ -z "$YAML" ] && clog BC stash log -1 build -2 deploy-s3 -3 yaml  -E "bc-deploy-s3 has no YAML entries to parse" && ((ERR++))
 
     #check YAML parses and is an array with length
     yLen="$(echo "$YAML"|yq 'length' 2>/dev/null)"
-    [ "$?" -gt 0    ] && clog BC stashLog -1 build -2 deploy-s3 -3 yaml -E "bc-deploy-s3 YAML cannot be parsed" && ((ERR++))
-    [ "$yLen" -eq 0 ] && clog BC stashLog -1 build -2 deploy-s3 -3 yaml -E "bc-deploy-s3 YAML array has zero length" && ((ERR++))
+    [ "$?" -gt 0    ] && clog BC stash log -1 build -2 deploy-s3 -3 yaml -E "bc-deploy-s3 YAML cannot be parsed" && ((ERR++))
+    [ "$yLen" -eq 0 ] && clog BC stash log -1 build -2 deploy-s3 -3 yaml -E "bc-deploy-s3 YAML array has zero length" && ((ERR++))
 
     # in github actions, the bucket env is S3_BUCKET unless overridden
     [ -n "$GITHUB_ACTIONS" ] && [ -z "$CLOG_BUCKET" ] && CLOG_BUCKET="$S3_BUCKET"
 
     # --------------------------------------------------------------------------
-    clog BC stashLog -1 build -2 deploy-s3 -3 yaml -I "🚀 deploy-s3 $cC$PROJECT $cX using aws cli $cF $vAws$cX for ${#SRC[@]} files"
+    clog BC stash log -1 build -2 deploy-s3 -3 yaml -I "🚀 deploy-s3 $cC$PROJECT $cX using aws cli $cF $vAws$cX for ${#SRC[@]} files"
 
     n=0
     while [ $n -lt $yLen ]; do
@@ -480,10 +483,10 @@ snippets:
     done
     
     if [ $ERR -gt 0 ]; then
-      clog BC stashLog -1 build -2 deploy-s3 -3 status -E "❌ failed with $ERR errors"
+      clog BC stash log -1 build -2 deploy-s3 -3 status -E "❌ failed with $ERR errors"
       exit $(((ERR+=$?)))
     fi
-    clog BC stashLog -1 build -2 deploy-s3 -3 status -S "✅ ok"
+    clog BC stash log -1 build -2 deploy-s3 -3 status -S "✅ ok"
     exit 0
 
   # ▼▼▼ bc-hugo ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
@@ -493,33 +496,33 @@ snippets:
     phase="$2"
 
     ERR=0
-    clog BC stashLog -1 build -2 hugo -3 start -I "⚒️  build hugo $phase→$cF kodata/"
+    clog BC stash log -1 build -2 hugo -3 start -I "⚒️  build hugo $phase→$cF kodata/"
 
     # Content may be a content/ directory OR a module mount declared in
     # module.yaml. Ask hugo what it can actually see: a mount-only repo is
     # legitimate and must build without a symlink.
     if [ -z "$(hugo list all 2>/dev/null | head -1)" ]; then
-      clog BC stashLog -1 build -2 hugo -3 content -E "⚒️  build hugo has no content - no content/ dir and no module mount"
+      clog BC stash log -1 build -2 hugo -3 content -E "⚒️  build hugo has no content - no content/ dir and no module mount"
       exit 1
     fi
-    clog BC stashLog -1 build -2 hugo -3 purge -I "$STEP.$(((++s))). purge$cF kodata/$cX, build site"
+    clog BC stash log -1 build -2 hugo -3 purge -I "$STEP.$(((++s))). purge$cF kodata/$cX, build site"
     rm -rf kodata/*
 
     opt="$opt --buildDrafts --buildFuture --buildExpired"
-    [ "$(clog ci mode)" = prod ] && opt=""
+    [ "$(clog CI mode)" = prod ] && opt=""
     # A site published under a path (project Pages, a staging host) needs its
     # base URL at build time or every link is wrong. Comes from ci.modes.
-    baseUrl="$(clog ci mode get base-url)"
+    baseUrl="$(clog CI mode get base-url)"
     [ -n "$baseUrl" ] && opt="$opt --baseURL $baseUrl"
-    clog BC stashLog -1 build -2 hugo -3 hugoBuild -I "$STEP.$(((++s))). build hugo $phase→${cF}kodata/$cC $opt"
+    clog BC stash log -1 build -2 hugo -3 hugoBuild -I "$STEP.$(((++s))). build hugo $phase→${cF}kodata/$cC $opt"
     hugo build --minify --logLevel info $opt
     ((ERR+=$?))
 
     if [ $ERR -gt 0 ]; then
-      clog BC stashLog -1 build -2 hugo -3 hugoBuild -E "❌ hugo build to kodata/ failed with $ERR errors"
+      clog BC stash log -1 build -2 hugo -3 hugoBuild -E "❌ hugo build to kodata/ failed with $ERR errors"
       exit $ERR
     fi
-    clog BC stashLog -1 build -2 hugo -3 hugoBuild -S "✅ hugo build to kodata/ ok"
+    clog BC stash log -1 build -2 hugo -3 hugoBuild -S "✅ hugo build to kodata/ ok"
     
   # ▼▼▼ bc-golang ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   #  $EXE   is the executable name - overrides the default of $PROJECT
@@ -527,7 +530,7 @@ snippets:
   #  artifacts appear in tmp/
   #  you may have to make a project copy of this function to make semver work
   bc-golang: |
-    # version stamp from git (clog BC genBuildinfo), not releases.yaml. prod mode
+    # version stamp from git (clog BC gen buildinfo), not releases.yaml. prod mode
     # refuses anything but a clean release tag, so a prod binary is a tag.
     fGoBuild(){
       local gofile=$(printf "%-30s" "$1"); shift
@@ -556,39 +559,39 @@ snippets:
       printf -v bPlatform "(built on %14s)" "$bOSV/$cpu"
 
       buildMsg="$cos$gofile$cX $tPlatform $bPlatform"
-      clog BC stashLog -1 build -2 golang -3 fGoBuild -I "$buildMsg"
+      clog BC stash log -1 build -2 golang -3 fGoBuild -I "$buildMsg"
 
       GOOS="$goos" GOARCH="$goarch" go build -o $gofile -ldflags "$lds"
       err=$?
       if [ $err -gt 0 ]; then
-        clog BC stashLog -1 build -2 golang -3 fGoBuild -E "Linker data string was:$cC -ldflags \"$lds\""
-        clog BC stashLog -1 build -2 golang -3 fGoBuild -E "$buildMsg ...  build failed"
+        clog BC stash log -1 build -2 golang -3 fGoBuild -E "Linker data string was:$cC -ldflags \"$lds\""
+        clog BC stash log -1 build -2 golang -3 fGoBuild -E "$buildMsg ...  build failed"
         return $err
       fi
       # Go silently ignores -X for a symbol the binary does not contain, which
       # is how every build shipped "-dev" from 2026-06 to 2026-09. Prove it landed.
       if ! go tool nm $gofile 2>/dev/null | grep -q " $linkerPath\$"; then
-        clog BC stashLog -1 build -2 golang -3 fGoBuild -E "$buildMsg ... $linkerPath is not in the binary - the version stamp would be lost"
+        clog BC stash log -1 build -2 golang -3 fGoBuild -E "$buildMsg ... $linkerPath is not in the binary - the version stamp would be lost"
         return 1
       fi
       size="$(du --apparent-size --block-size=M $gofile)"
-      clog BC stashLog -1 build -2 golang -3 fGoBuild -I "$buildMsg ... $size"
+      clog BC stash log -1 build -2 golang -3 fGoBuild -I "$buildMsg ... $size"
     }
     eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
-    [ -z "$EXE" ] && clog BC stashLog -1 build -2 golang -3 gobuild -E "\$EXE must be set to the target filename" && exit 1
-    [ -z "$TITLE" ]&&clog BC stashLog -1 build -2 golang -3 gobuild -E "\$TITLE must be set to the target's printable name" && exit 1
+    [ -z "$EXE" ] && clog BC stash log -1 build -2 golang -3 gobuild -E "\$EXE must be set to the target filename" && exit 1
+    [ -z "$TITLE" ]&&clog BC stash log -1 build -2 golang -3 gobuild -E "\$TITLE must be set to the target's printable name" && exit 1
     ERR=0
 
-    mode="$(clog ci mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
-    linkerPath="$(clog BC linkerpath)"
+    mode="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
+    linkerPath="$(clog BC get linkerpath)"
     # $FLAVOUR marks the build edition (+plain, +mrmxf) so two binaries built
     # from different main packages can be told apart at runtime. Optional.
-    lds="$(clog BC genBuildinfo "$mode" --format ldflags --name "$EXE" --title "$TITLE" --flavour "${FLAVOUR:-}")" || {
-      clog BC stashLog -1 build -2 golang -3 gobuild -E "❌ no build info for a $mode build - see the error above"
+    lds="$(clog BC gen buildinfo "$mode" --format ldflags --name "$EXE" --title "$TITLE" --flavour "${FLAVOUR:-}")" || {
+      clog BC stash log -1 build -2 golang -3 gobuild -E "❌ no build info for a $mode build - see the error above"
       exit 1; }
-    version="$(clog BC genBuildinfo "$mode" --format version)"
+    version="$(clog BC gen buildinfo "$mode" --format version)"
 
-    clog BC stashLog -1 build -2 golang -3 start -I "⚒️  golang build $EXE $version ($mode) →$cF tmp/$EXE-cpu-os"
+    clog BC stash log -1 build -2 golang -3 start -I "⚒️  golang build $EXE $version ($mode) →$cF tmp/$EXE-cpu-os"
 
     # ensure tmp folder exists
     mkdir -p tmp
@@ -602,10 +605,10 @@ snippets:
       fGoBuild tmp/$app-arm-mac     darwin  arm64; ((ERR+=$?))
 
     if [ $ERR -gt 0 ]; then
-      clog BC stashLog -1 build -2 golang -3 status -E "❌ golang build failed with $ERR errors"
+      clog BC stash log -1 build -2 golang -3 status -E "❌ golang build failed with $ERR errors"
       exit $ERR
     fi
-    clog BC stashLog -1 build -2 golang -3 status -S "✅ golang build ok"
+    clog BC stash log -1 build -2 golang -3 status -S "✅ golang build ok"
 
   # ▼▼▼ bc-ko ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   bc-ko: |
@@ -614,11 +617,11 @@ snippets:
     ERR=0
     # image tags from git + mode (releases.yaml is history): prod builds a clean
     # release tag -> v1.2.3 + latest; dev -> v1.2.3-dev.3.gabc1234 + latest-dev
-    mode="$(clog ci mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
-    tag1="$(clog BC genBuildinfo "$mode" --format docker-tag)" || exit 1
+    mode="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
+    tag1="$(clog BC gen buildinfo "$mode" --format docker-tag)" || exit 1
     tag2="latest"; [ "$mode" = prod ] || tag2="latest-dev"
 
-    clog BC stashLog -1 build -2 ko -3 start -I "⚒️  build ko →$cU hub.docker.com/$DOCKER_NS/$PROJECT:$cW$tag1$cX and$cW $tag2$cX"
+    clog BC stash log -1 build -2 ko -3 start -I "⚒️  build ko →$cU hub.docker.com/$DOCKER_NS/$PROJECT:$cW$tag1$cX and$cW $tag2$cX"
 
     # config is in .ko.yaml
     # use the default docker repo unless told otherwise
@@ -639,7 +642,7 @@ snippets:
     #
     # A deploying CI run still pushes from here, because there is no
     # container-registry deployer yet: ci/deploy.go registers github-pages and
-    # nothing else, so `clog ci deploy` cannot publish an image. Until that
+    # nothing else, so `clog CI deploy` cannot publish an image. Until that
     # deployer exists, moving the push out of the build would simply mean the
     # image never reaches the registry. See ci/SCANNING.md.
     #
@@ -655,10 +658,10 @@ snippets:
     fi
     cd "$wd"
     if [ $ERR -gt 0 ]; then
-      clog BC stashLog -1 build -2 ko -3 status -E "❌ failed $PROJECT:$tag1 and $tag2"
+      clog BC stash log -1 build -2 ko -3 status -E "❌ failed $PROJECT:$tag1 and $tag2"
       exit $(((ERR+=$?)))
     fi
-    clog BC stashLog -1 build -2 ko -3 status -S "✅ ok $PROJECT:$tag1 and $tag2"
+    clog BC stash log -1 build -2 ko -3 status -S "✅ ok $PROJECT:$tag1 and $tag2"
 
   # ▼▼▼ dev ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   #             _
@@ -747,13 +750,13 @@ snippets:
     # --- git hash snippets:  clog git tag <snippet> -------------------------------------------------------------------
     hash:
       head: git rev-list -1 HEAD
-      origin: git ls-remote --head --sort=-v:refname origin | grep $(clog BC git branch) | head -1 | head -c 40
+      origin: git ls-remote --head --sort=-v:refname origin | grep $(clog BC git get branch) | head -1 | head -c 40
     # --- git message snippets:  clog git tag <snippet> ----------------------------------------------------------------
     message:
       latest: git log HEAD | head -5 | tail -1 | xargs
       # this is the default snippet to return the target commit message for
       # your project override in your project' clog.yaml
-      ref: yq -r '.[0].note' "$(clog BC releases yaml)"
+      ref: yq -r '.[0].note' "$(clog BC releases get path)"
     origin: git config --get remote.origin.url
     # --- git suffix snippets:  clog git suffix - added to a release ---------------------------------------------------
     suffix: |
@@ -766,7 +769,7 @@ snippets:
       origin: git ls-remote --tags --sort=-v:refname origin | head -1 | grep -oE 'v{0,1}[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-0]+){0,1}'
       # the build's version from git (releases.yaml is history):
       # v1.2.3 on a release tag, else v1.2.3+dev.N.gSHA
-      ref: clog BC genBuildinfo --format version
+      ref: clog BC gen buildinfo --format version
       tidy: 'echo "try:  clog BC git tag tidy"'
     # --- git tree snippets:  clog git tree <snippet> ------------------------------------------------------------------
     tree:
@@ -774,8 +777,8 @@ snippets:
       behind: if [ "$(git status|grep -oE '(merge the remote)')" ];then echo "Branch behind - do pull";exit 1;else echo "ok";fi
       clean: if [ "$(git status|grep -oE '(working tree clean)')" ];then echo "ok";else echo "Working tree not clean";exit 1;fi
     unstaged: if [ "$(git status|grep -oE '(Changes not staged)')" ];then echo "Commit unstaged changes";exit 1; else echo "ok";fi
-    # deprecated - use clog BC git tag ref
-    vcode: clog BC git tag ref
+    # deprecated - use clog BC git tag get ref
+    vcode: clog BC git tag get ref
     # walk the parent repos to see if they're unclean
     parents: |
       eval "$(clog Inc)" # set color strings
@@ -978,7 +981,7 @@ svc:
 
   # webhook handling
   # format: https://some-host.dns/a/hook/hookType/{source}/{project}/{semver}
-  # format: https://some-host.dns/a/hook/cicd/gitlab-deploy/$PROJECT/$(clog BC git tag ref)
+  # format: https://some-host.dns/a/hook/cicd/gitlab-deploy/$PROJECT/$(clog BC git tag get ref)
   hookprefix: "/hook"
   hooks:
     # params for responding to /hook/website/{id}
