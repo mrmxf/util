@@ -8,7 +8,7 @@ require (
 	github.com/mrmxf/util/check v0.11.1
 	github.com/mrmxf/util/ci v0.13.0
 	github.com/mrmxf/util/kfg v0.11.1
-	github.com/mrmxf/util/retire v0.1.0
+	github.com/mrmxf/util/retire v0.2.0
 	github.com/mrmxf/util/scripts v0.11.0
 	github.com/mrmxf/util/slogger v0.11.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1

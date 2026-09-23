@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/mrmxf/util/buildinfo v0.12.0
-	github.com/mrmxf/util/retire v0.1.0
+	github.com/mrmxf/util/retire v0.2.0
 	github.com/spf13/cobra v1.10.2
 )
 

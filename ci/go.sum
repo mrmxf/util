@@ -35,8 +35,8 @@ github.com/mrmxf/util/buildinfo v0.12.0 h1:+YsYxzl0k5TQjnbrvRLSCWCg2Ni4+AlyYSE29
 github.com/mrmxf/util/buildinfo v0.12.0/go.mod h1:V2hLEt0BJfn+ty4N4go+lJKaB7YLwR0BFXHJTS4yJL0=
 github.com/mrmxf/util/kfg v0.11.0 h1:ybiNmPdDx+AmleNTsG8Ee16lLayN6UXW4qtEHCxVFHE=
 github.com/mrmxf/util/kfg v0.11.0/go.mod h1:/tKpEYYSJnuMNJ1oI6B2PMGdmvizs7omx7zDV/257QM=
-github.com/mrmxf/util/retire v0.1.0 h1:FrymAKAvpI93lLqlECgbPzJFwZdvwLdaotO0RcJUvHY=
-github.com/mrmxf/util/retire v0.1.0/go.mod h1:uPYqdHAasNaxqwSnO2j4oM6kPQ/CWX3uy23olHBA55A=
+github.com/mrmxf/util/retire v0.2.0 h1:3nPJyKIGbK8hMlk5v79YYsi+luuMzOMzouJyqqf6BY0=
+github.com/mrmxf/util/retire v0.2.0/go.mod h1:uPYqdHAasNaxqwSnO2j4oM6kPQ/CWX3uy23olHBA55A=
 github.com/mrmxf/util/slogger v0.11.0 h1:w1m9cMmGKe98rLThAlicD4iOVWjX+gF3uR9jHH1qCyc=
 github.com/mrmxf/util/slogger v0.11.0/go.mod h1:DOI2n93a4RU4AVLTjQa04DuaoE5V0Oz+Hw6HBLYiM80=
 github.com/nats-io/nats.go v1.52.0 h1:n3avV4VBsCgsdwh71TppsTwtv+QdPs7ntSKM8qJLGsc=

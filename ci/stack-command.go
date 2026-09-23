@@ -22,10 +22,11 @@ var stackCmd = &cobra.Command{
 	Short: "the named build units in ci.stack",
 	Long: `ci stack - the named build units in ci.stack.
 
-With no arguments it lists every stack name, in declaration order. The first is
-the default for ` + "`clog watch`" + `, so order is meaningful.
+` + "`list`" + ` with no noun prints every stack name, in declaration order. The first
+is the default for ` + "`clog watch`" + `, so order is meaningful. A bare ` + "`clog CI stack`" + `
+was retired in v1.0.0 and fails, naming the verb.
 
-  clog CI stack                       every name, one per line
+  clog CI stack list                   every name, one per line
   clog CI stack list tools             tools for every stack, space separated
   clog CI stack list make --stack bonfire
 

@@ -3,7 +3,10 @@
 
 package bc
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/mrmxf/util/retire"
+	"github.com/spf13/cobra"
+)
 
 // The verb groups that give BC its v1.0.0 grammar.
 //
@@ -124,4 +127,8 @@ var semverGroupCmd = &cobra.Command{
 func init() {
 	Command.AddCommand(semverGroupCmd)
 	semverGroupCmd.AddCommand(semverCmd)
+	// Without this the old form printed help and exited 0: a version check
+	// written `try: clog BC semver a b` passed on every version.
+	retire.Namespace(semverGroupCmd, "clog BC semver satisfies <needs> <have>",
+		"a comparison is a question, so the verb names the question")
 }

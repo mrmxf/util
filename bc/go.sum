@@ -88,8 +88,8 @@ github.com/mrmxf/util/crayon v0.11.0 h1:yCoclsOLA3DDWyZkUL3NriGF5nX789z4P0fc5tts
 github.com/mrmxf/util/crayon v0.11.0/go.mod h1:RaQR6hbAuCXV+tjb25XK8WVpWGqScT84eTZ3pSq3tms=
 github.com/mrmxf/util/kfg v0.11.1 h1:w1irV8Nc6cZkt9Sjvoz5Vzr8vq9HSoMR52rVr59IPyM=
 github.com/mrmxf/util/kfg v0.11.1/go.mod h1:/tKpEYYSJnuMNJ1oI6B2PMGdmvizs7omx7zDV/257QM=
-github.com/mrmxf/util/retire v0.1.0 h1:FrymAKAvpI93lLqlECgbPzJFwZdvwLdaotO0RcJUvHY=
-github.com/mrmxf/util/retire v0.1.0/go.mod h1:uPYqdHAasNaxqwSnO2j4oM6kPQ/CWX3uy23olHBA55A=
+github.com/mrmxf/util/retire v0.2.0 h1:3nPJyKIGbK8hMlk5v79YYsi+luuMzOMzouJyqqf6BY0=
+github.com/mrmxf/util/retire v0.2.0/go.mod h1:uPYqdHAasNaxqwSnO2j4oM6kPQ/CWX3uy23olHBA55A=
 github.com/mrmxf/util/scripts v0.11.0 h1:u0s6Pt1ln9ZInYq4vKbYpiCwo+wgNiv23jo2tlG2cG4=
 github.com/mrmxf/util/scripts v0.11.0/go.mod h1:BgiUWqHrhTGlTfEdTYI0ddcWMMI5uPy/0cuLYtw70ow=
 github.com/mrmxf/util/shell v0.11.0 h1:x1QXe4C6FKdfn3+C5ufoMLSBq7W+aP4g5t93VQV3Hfo=

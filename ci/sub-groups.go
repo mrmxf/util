@@ -3,7 +3,10 @@
 
 package ci
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/mrmxf/util/retire"
+	"github.com/spf13/cobra"
+)
 
 // scanNsCmd is the namespace: `clog CI scan <verb>`. It has two verbs, so it
 // cannot be a leaf under `show` - listing the targets a sweep visits is a
@@ -34,4 +37,10 @@ func init() {
 	// scan: the axis, and the targets an artifact sweep visits
 	Command.AddCommand(scanNsCmd)
 	scanNsCmd.AddCommand(scanCmd, scanListCmd)
+
+	// Both were commands before v1.0.0 and printed values. As plain namespaces
+	// they printed help and exited 0, so `for t in $(clog CI stack)` looped over
+	// help text and `eval "$(clog CI scan --format env)"` set nothing.
+	retire.Namespace(stackCmd, "clog CI stack list", retire.BareNoun)
+	retire.Namespace(scanNsCmd, "clog CI scan show", retire.BareNoun)
 }

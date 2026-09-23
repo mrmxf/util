@@ -25,7 +25,7 @@ The .clog.yaml file has a number of optional elements:
 
 clog:
   releases-path: "path/to/releases.yaml"   # history, see above
-  stash-path:     tmp/BcStash.yaml         # default place for remembering progress data
+  stash-path:     _clog_build/check/stash.yaml   # the default; set only to move it
 
 Use 'clog BC <command> --help' for more information about specific commands.
 `
