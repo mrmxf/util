@@ -119,3 +119,20 @@ func TestModeGet(t *testing.T) {
 		t.Error("--required should fail on a missing mode setting")
 	}
 }
+
+// A flag registered on the wrong command is invisible: the code that reads it
+// compiles, the tests that call TargetGet directly pass, and the only thing
+// that breaks is the command line - which no Go test exercises unless it asks.
+// `--required` spent the grammar wave on targetCmd while `get` was becoming a
+// real subcommand beneath it, so every caller writing
+// `clog CI target get user --required` got "unknown flag".
+func TestTargetGetAcceptsRequiredFlag(t *testing.T) {
+	f := targetGetCmd.Flags().Lookup("required")
+	if f == nil {
+		t.Fatal("`clog CI target get` has no --required flag: it belongs on " +
+			"targetGetCmd, the command that reads targetGetRequire, not on its parent")
+	}
+	if f.Value.Type() != "bool" {
+		t.Errorf("--required should be a bool, got %s", f.Value.Type())
+	}
+}

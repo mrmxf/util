@@ -14,7 +14,7 @@ import (
 var formatFlag string
 var configHelpFlag bool
 
-// Command is the `clog ci` cobra command. It groups CI-orchestration helpers;
+// Command is the `clog CI` cobra command. It groups CI-orchestration helpers;
 // today the only sub-command is `resolve`.
 var Command = &cobra.Command{
 	Use:   "CI",
@@ -80,7 +80,10 @@ func init() {
 	Command.AddCommand(modeCmd)
 	Command.AddCommand(envCmd) // deprecated alias of `ci mode` (mode.go)
 	targetsCmd.Flags().StringVar(&targetsKindFlag, "kind", "", "only targets of this kind (container-registry|bucket|cloudflare-pages|github-pages|gitlab-pages|github-release|gitlab-release)")
-	targetCmd.Flags().BoolVar(&targetGetRequire, "required", false, "exit 1 when the key is missing or empty")
+	// On targetGetCmd, not targetCmd: `get` is a real subcommand here (unlike
+	// `mode get`, where get is an argument), so a flag on the parent is one the
+	// only command that reads it can never be given.
+	targetGetCmd.Flags().BoolVar(&targetGetRequire, "required", false, "exit 1 when the key is missing or empty")
 	Command.AddCommand(targetCmd)
 	deployCmd.Flags().StringVar(&deployTargetFlag, "target", "", "deploy only this ci.targets.<name>")
 	deployCmd.Flags().BoolVar(&deployDryRunFlag, "dry-run", false, "report what would be published, change nothing")
@@ -120,7 +123,7 @@ func runResolve(cmd *cobra.Command, args []string) error {
 // EnvLines renders the resolution as shell KEY=value lines, suitable for
 // appending to $GITHUB_ENV or sourcing as a dotenv file. The lowercase keys
 // verb/depth/ref/repo/url match the names the legacy workflows wrote, so the
-// new `clog ci resolve --format env >> $GITHUB_ENV` is a drop-in replacement.
+// new `clog CI show event --format env >> $GITHUB_ENV` is a drop-in replacement.
 func (r Resolution) EnvLines() string {
 	return "" +
 		"ci=" + string(r.CI) + "\n" +

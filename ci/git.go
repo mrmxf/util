@@ -21,7 +21,7 @@ type GitResolver interface {
 
 // execGit implements GitResolver by shelling out to git. All calls are
 // best-effort: a missing repo or git binary yields empty strings, not errors,
-// so `clog ci resolve` still prints a sensible LOCAL result outside a repo.
+// so `clog CI show event` still prints a sensible LOCAL result outside a repo.
 type execGit struct{}
 
 func (execGit) git(args ...string) string {

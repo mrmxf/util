@@ -3,37 +3,37 @@
 
 package ci
 
-// configHelp is printed by `clog ci --config-help`. It is plain text kept in
+// configHelp is printed by `clog CI --config-help`. It is plain text kept in
 // its own file so it can be edited without touching code. Audience: a coder
 // (or an AI) who knows Infisical and GitHub/GitLab but has not wired this
 // particular setup before. Keep it terse, literal and copy-pasteable; no
 // backticks (Go raw string).
-const configHelp = `clog ci --config-help : CI secrets via Infisical OIDC
+const configHelp = `clog CI --config-help : CI secrets via Infisical OIDC
 
 STATUS
-  implemented: config contract, clog ci run / require / policy / should / get / mode / targets /
+  implemented: config contract, clog CI run / require / policy / should / get / mode / targets /
   target, util workflows v1. No staging: a run is dev or prod (D-I.12).
 
 MODEL
-  CI yaml     : triggers + OIDC permission + one "clog ci run -- clog <verb>" per job. No secrets.
+  CI yaml     : triggers + OIDC permission + one "clog CI run -- clog <verb>" per job. No secrets.
   .clog.yaml  : every non-secret value, incl. which Infisical project/env/identity to use.
   Infisical   : secrets only. CI logs in with the platform OIDC token (no stored credential).
   workflows   : mrmxf/util/.github/workflows/{build-golang,build-hugo,deploy-s3}.yaml@workflows-v1
                   (first step mrmxf/util/.github/actions/clog-prepare); GitLab: util/gitlab/clog.gitlab-ci.yml
-  gate        : clog ci policy --format env >> $GITHUB_ENV
+  gate        : clog CI show policy --format env >> $GITHUB_ENV
                   -> build_mode deploy_mode do_build do_deploy deploy_targets
                   -> if: env.do_build == 'true'   /   if: env.do_deploy == 'true'
-                  (or in a script:  clog ci should deploy || exit 0)
+                  (or in a script:  clog CI should deploy || exit 0)
   deploy      : one run per target (D-I.14):
                   for t in $deploy_targets; do
-                    CLOG_TARGET="$t" clog ci run -- bash -c 'clog ci require deploy && clog deploy' || exit 1
+                    CLOG_TARGET="$t" clog CI run -- bash -c 'clog CI require deploy && clog deploy' || exit 1
                   done
-  flow        : clog ci run -- clog <verb>
-                = clog ci mode -> platform OIDC token -> POST <domain>/api/v1/auth/oidc-auth/login
+  flow        : clog CI run -- clog <verb>
+                = clog CI mode -> platform OIDC token -> POST <domain>/api/v1/auth/oidc-auth/login
                   -> GET <domain>/api/v4/secrets (imports merged) -> exec <verb> with secrets in env
                   (no Infisical CLI needed in CI; laptop uses the infisical login session)
 
-MODE -> INFISICAL (clog ci mode decides; see clog ci mode --help)
+MODE -> INFISICAL (clog CI mode decides; see clog CI mode --help)
   mode  when                                        infisical env  identity   login
   dev   laptop, PR, branch push, dispatch           dev            dev-uuid   OIDC (laptop: user login)
   prod  tag push / schedule that ci.policy.deploy.  prod           prod-uuid  OIDC
@@ -45,16 +45,16 @@ MODE -> INFISICAL (clog ci mode decides; see clog ci mode --help)
   ci:
     artifact: "<name>"                       # workflows: build uploads / deploy downloads it
     title: "<slack title>"
-    policy:                                  # clog ci policy --help
+    policy:                                  # clog CI show policy --help
       actors: [<login>]                      # optional: only these accounts build/deploy in CI
       build: [branch, tag, dispatch]         # branch|tag|dispatch|schedule|pr|local
       deploy:                                # keyed by MODE; PRs never deploy
         dev:  {branches: [main, rc, dev]}    # globs, * also matches "/"
         prod: {tags: ["v*"]}                       # + schedule: true to let scheduled runs deploy
-    modes:                                   # per-mode BUILD settings: clog ci mode get <key>
+    modes:                                   # per-mode BUILD settings: clog CI mode get <key>
       dev:  {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts"}
       prod: {base-url: "https://example.com/"}
-    targets:                                 # deploy destinations: clog ci targets / target get
+    targets:                                 # deploy destinations: clog CI target list / target get
       bucket:
         kind: bucket                         # container-registry | bucket | package
                                              # cloudflare-pages | github-pages | gitlab-pages
@@ -121,10 +121,10 @@ GOTCHAS
   - Scheduled prod runs present a BRANCH subject (refs/heads/<default>). A tags-only prod
     identity rejects them. Either do not schedule prod, or bind prod to a GitHub Environment:
     job "environment: prod" -> sub = repo:<owner>/<repo>:environment:prod.
-  - Pull requests (esp. forks) never reach Infisical: clog ci run skips the fetch and runs the command without secrets.
+  - Pull requests (esp. forks) never reach Infisical: clog CI run skips the fetch and runs the command without secrets.
   - GitHub needs "permissions: id-token: write" on the caller workflow AND the reusable job.
   - GitLab needs, per job:   id_tokens: {INFISICAL_ID_TOKEN: {aud: <ci.infisical.domain>}}
-  - infisical CLI flag names differ by version (--jwt vs --oidc-jwt); clog ci run avoids the CLI in CI.
+  - infisical CLI flag names differ by version (--jwt vs --oidc-jwt); clog CI run avoids the CLI in CI.
   - infisical run does not mask output. Never echo secrets; on GitHub clog emits ::add-mask::.
 
 READ THE REAL OIDC CLAIMS (print claims, never the token)
@@ -142,4 +142,4 @@ VERIFY FROM A LAPTOP (user login: infisical login --domain=<ci.infisical.domain>
                "does not have OIDC Auth attached" = step 3 not done.
   imports    : curl -sH "Authorization: Bearer $(infisical user get token --plain)" \
                  "<domain>/api/v2/secret-imports?projectId=<id>&environment=<env>&path=/<repo>" | jq '.secretImports[]|{importPath}'
-  local run  : clog ci run --dry-run -- clog deploy     (then without --dry-run)`
+  local run  : clog CI run --dry-run -- clog deploy     (then without --dry-run)`

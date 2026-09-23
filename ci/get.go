@@ -16,12 +16,12 @@ var getCmd = &cobra.Command{
 	Short: "print a non-secret value from the clog config, e.g. ci.artifact",
 	Long: `ci get - print one value from the merged clog config (.clog.yaml overlays)
 
-  clog ci get ci.artifact
-  echo "ci_artifact=$(clog ci get ci.artifact)" >> "$GITHUB_ENV"
+  clog CI get ci.artifact
+  echo "ci_artifact=$(clog CI get ci.artifact)" >> "$GITHUB_ENV"
 
 Scalars print as-is; lists print one item per line. A missing key prints nothing
 and exits 0, so optional settings compose in scripts; add --required to fail.
-Secrets are not in the config - see clog ci run.`,
+Secrets are not in the config - see clog CI run.`,
 	SilenceUsage: true,
 	Args:         cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

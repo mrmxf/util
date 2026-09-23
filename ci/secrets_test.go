@@ -347,7 +347,7 @@ func TestRequire(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "AWS_ACCESS_KEY_ID") || !strings.Contains(err.Error(), "ci.targets.bucket.dev.bucket") {
 			t.Fatalf("want both missing names in the error, got %v", err)
 		}
-		if !strings.Contains(err.Error(), "clog ci run -- clog deploy") || !strings.Contains(err.Error(), "set in .clog.yaml") {
+		if !strings.Contains(err.Error(), "clog CI run -- clog deploy") || !strings.Contains(err.Error(), "set in .clog.yaml") {
 			t.Errorf("want a fix for each kind of missing value: %v", err)
 		}
 		if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "HOOK_SLACK") {
@@ -367,12 +367,12 @@ func TestRequire(t *testing.T) {
 		if strings.Contains(err.Error(), "clog deploy-form") {
 			t.Errorf("hint must not suggest a command that does not exist: %v", err)
 		}
-		if !strings.Contains(err.Error(), "clog ci run --") || !strings.Contains(err.Error(), "Infisical") {
-			t.Errorf("hint should name clog ci run and where the secrets come from: %v", err)
+		if !strings.Contains(err.Error(), "clog CI run --") || !strings.Contains(err.Error(), "Infisical") {
+			t.Errorf("hint should name clog CI run and where the secrets come from: %v", err)
 		}
 	})
 
-	t.Run("inside clog ci run points at Infisical", func(t *testing.T) {
+	t.Run("inside clog CI run points at Infisical", func(t *testing.T) {
 		withConfig(t, cfg, map[string]any{"ci.targets.bucket.dev.bucket": "b"})
 		captureLogs(t)
 		err := Require(local(map[string]string{RunMarkerVar: "1"}), "deploy")
@@ -385,7 +385,7 @@ func TestRequire(t *testing.T) {
 		withConfig(t, cfg, map[string]any{})
 		captureLogs(t)
 		err := Require(local(map[string]string{"AWS_ACCESS_KEY_ID": "x", "AWS_SECRET_ACCESS_KEY": "y"}), "deploy")
-		if err == nil || strings.Contains(err.Error(), "clog ci run") || !strings.Contains(err.Error(), ".clog.yaml") {
+		if err == nil || strings.Contains(err.Error(), "clog CI run") || !strings.Contains(err.Error(), ".clog.yaml") {
 			t.Fatalf("missing config should point at .clog.yaml only, got %v", err)
 		}
 	})

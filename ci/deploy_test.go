@@ -303,7 +303,7 @@ func TestDeployModeFlagForcesTargetSelection(t *testing.T) {
 
 // A repo with no secret store must still run. Not every repo has secrets - a
 // docs site publishing to GitHub Pages needs only the token Actions provides -
-// and `clog ci run` used to fail such a repo with "missing .clog.yaml keys".
+// and `clog CI run` used to fail such a repo with "missing .clog.yaml keys".
 func TestInfisicalIsUnset(t *testing.T) {
 	if !(InfisicalConfig{}).isUnset() {
 		t.Error("an absent ci.infisical block should be unset")

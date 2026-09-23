@@ -146,7 +146,7 @@ func resolveGitLab(env Env) Resolution {
 	return r
 }
 
-// resolveLocal resolves from the developer's working copy so `clog ci resolve`
+// resolveLocal resolves from the developer's working copy so `clog CI show event`
 // shows exactly what CI would compute, before any push.
 func resolveLocal(env Env) (Resolution, error) {
 	git := env.Git

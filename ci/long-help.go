@@ -22,15 +22,15 @@ Sub-commands:
   should    exit 0/1: does ci.policy allow build | deploy for this run?
   get       print a non-secret config value (ci.artifact, ci.title, ...)
 
-See 'clog ci resolve --help' and 'clog ci mode --help' for details.
-Setting up CI secrets (Infisical OIDC, identities, .clog.yaml keys): clog ci --config-help`
+See 'clog CI show event --help' and 'clog CI mode --help' for details.
+Setting up CI secrets (Infisical OIDC, identities, .clog.yaml keys): clog CI --config-help`
 
 const modeHelp = `ci mode - dev or prod? and what does that mean here?
 
-  clog ci mode                    dev | prod
-  clog ci mode show               this mode's ci.modes settings, as KEY=value lines
-  clog ci mode get base-url       one setting
-  CLOG_MODE=prod clog ci mode     force the mode (a laptop reproducing a CI run)
+  clog CI mode                    dev | prod
+  clog CI mode show               this mode's ci.modes settings, as KEY=value lines
+  clog CI mode get base-url       one setting
+  CLOG_MODE=prod clog CI mode     force the mode (a laptop reproducing a CI run)
 
 There is no staging (D-I.12). A run is dev or prod, and the same value drives the
 build and the deploy:
@@ -47,12 +47,12 @@ deploy target applies. Per-mode BUILD settings live in ci.modes:
       dev:  {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts"}
       prod: {base-url: "https://example.com/",   hugo-flags: ""}
 
-  hugo build --baseURL "$(clog ci mode get base-url)" $(clog ci mode get hugo-flags)
+  hugo build --baseURL "$(clog CI mode get base-url)" $(clog CI mode get hugo-flags)
 
 $CLOG_ENV is the old name for $CLOG_MODE and still works with a warning;
 CLOG_MODE=stage is an error rather than a guess.`
 
-const resolveHelp = `ci resolve - resolve the active CI event into normalized ref/repo/verb
+const resolveHelp = `CI show event - resolve the active CI event into normalized ref/repo/verb
 
 Detects the active platform (GITHUB_ACTIONS / GITLAB_CI, else local git) and
 emits a normalized result:
@@ -73,13 +73,13 @@ Output:
 Locally (no CI vars set) it resolves from your git working copy, so you can
 preview exactly what CI would check out before you push:
 
-  clog ci resolve
-  clog ci resolve --format env`
+  clog CI show event
+  clog CI show event --format env`
 
 const runHelp = `ci run - run a command with this repo's Infisical secrets in its environment
 
-  clog ci run -- clog deploy
-  clog ci run --dry-run -- clog deploy     # log in + fetch, report names, run nothing
+  clog CI run -- clog deploy
+  clog CI run --dry-run -- clog deploy     # log in + fetch, report names, run nothing
 
 Where the secrets come from (config: ci.infisical in .clog.yaml):
   GitHub Actions  OIDC login as ci.infisical.identity.github.<dev|prod>-uuid
@@ -89,18 +89,18 @@ Where the secrets come from (config: ci.infisical in .clog.yaml):
   laptop          your  infisical login  session
   pull request    none - the command runs without secrets
 
-The mode (clog ci mode: dev|prod) picks the Infisical env via ci.infisical.env
+The mode (clog CI mode: dev|prod) picks the Infisical env via ci.infisical.env
 and the identity: prod uses prod-uuid, dev uses dev-uuid.
 
 Secrets are added to the command's environment only (not to $GITHUB_ENV), each
 value is registered with ::add-mask:: on GitHub, and only names are logged.
 The command also gets CLOG_CI_RUN=1. Its exit code becomes clog's.
 
-Setup: clog ci --config-help`
+Setup: clog CI --config-help`
 
 const requireHelp = `ci require - fail early if what a verb needs is missing
 
-  clog ci require deploy
+  clog CI require deploy
 
 Reads ci.require.<verb> from .clog.yaml:
 
@@ -117,19 +117,19 @@ its value. A verb with no entry passes. Put it first in a snippet so nothing
 runs half-configured; to re-run under secrets on a laptop, the way
 chiddingfoldbonfire re-runs under infisical:
 
-  if ! clog ci require deploy; then
-    [ -z "$CI" ] && [ "$CLOG_CI_RUN" != "1" ] && exec clog ci run -- clog deploy "$@"
+  if ! clog CI require deploy; then
+    [ -z "$CI" ] && [ "$CLOG_CI_RUN" != "1" ] && exec clog CI run -- clog deploy "$@"
     exit 1
   fi`
 
-const policyHelp = `ci policy / ci should - does this run build? does it deploy?
+const policyHelp = `CI show policy / CI should - does this run build? does it deploy?
 
-  clog ci policy                     JSON: mode, event, ref, build, deploy, targets + reasons
-  clog ci policy --format env        build_mode= deploy_mode= do_build= do_deploy= deploy_targets=
+  clog CI show policy                     JSON: mode, event, ref, build, deploy, targets + reasons
+  clog CI show policy --format env        build_mode= deploy_mode= do_build= do_deploy= deploy_targets=
                                      (for $GITHUB_ENV / a GitLab dotenv report)
-  clog ci should deploy && clog deploy
-  CLOG_MODE=dev  clog ci policy      laptop preview: judged as a push of the current branch
-  CLOG_MODE=prod clog ci policy      laptop on a tag: judged as a push of that tag
+  clog CI should deploy && clog deploy
+  CLOG_MODE=dev  clog CI show policy      laptop preview: judged as a push of the current branch
+  CLOG_MODE=prod clog CI show policy      laptop on a tag: judged as a push of that tag
 
 Reads ci.policy from .clog.yaml:
 
@@ -137,7 +137,7 @@ Reads ci.policy from .clog.yaml:
     policy:
       actors: [mrmxf]                        # optional: only these accounts build/deploy in CI
       build: [branch, tag, dispatch]         # events that build; missing list = build always
-      deploy:                                # keyed by mode (see clog ci mode): dev, prod
+      deploy:                                # keyed by mode (see clog CI mode): dev, prod
         dev:  {branches: [main, rc, dev]}
         prod: {tags: ["v*"], schedule: false}
 
@@ -156,9 +156,9 @@ no ci.policy.build = everything builds; a run that does not build does not deplo
 
 const deployHelp = `ci deploy - publish the build to this run's targets
 
-  clog ci deploy                    every target that deploys in this mode
-  clog ci deploy --target pages     just that one
-  clog ci deploy --dry-run          say what would happen, change nothing
+  clog CI deploy                    every target that deploys in this mode
+  clog CI deploy --target pages     just that one
+  clog CI deploy --dry-run          say what would happen, change nothing
 
 Each ci.targets.<name> has a kind, and the kind decides how it is published.
 Targets run in config order; the first failure stops the run, because a
@@ -166,7 +166,7 @@ half-deployed release is worse than a stopped one.
 
   github-pages    force-push a directory to a Pages branch
 
-Kinds that clog ci targets accepts but that are not shown above are declared and
+Kinds that clog CI target list accepts but that are not shown above are declared and
 validated, but have no deployer yet; naming one is an error, not a silent skip.
 
 github-pages target data, per mode:
@@ -193,18 +193,18 @@ turns Pages on or changes a live site's serving source: that is a one-time
 setting, not something a deploy should do behind your back.
 `
 
-const targetsHelp = `ci targets / ci target - where does this run deploy to?
+const targetsHelp = `CI target list / CI target get - where does this run deploy to?
 
-  clog ci targets                       target names for this mode, one per line
-  clog ci targets --kind container-registry
-  CLOG_TARGET=bucket clog ci target get prefix
-  CLOG_TARGET=bucket clog ci target get kind
+  clog CI target list                       target names for this mode, one per line
+  clog CI target list --kind container-registry
+  CLOG_TARGET=bucket clog CI target get prefix
+  CLOG_TARGET=bucket clog CI target get kind
 
 A deploy sends the build to one destination per target, so a project with two
 destinations declares two targets and the deploy step runs twice (D-I.14):
 
-  for t in $(clog ci targets); do
-    CLOG_TARGET="$t" clog ci run -- bash -c 'clog ci require deploy && clog deploy' || exit 1
+  for t in $(clog CI target list); do
+    CLOG_TARGET="$t" clog CI run -- bash -c 'clog CI require deploy && clog deploy' || exit 1
   done
 
 Config - kind, the secrets the destination needs, and a block per mode:
@@ -220,4 +220,4 @@ Config - kind, the secrets the destination needs, and a block per mode:
         prod: {bucket: my-bucket, prefix: "bin/{tag}"}
 
 Values expand {tag} {version} {sha} {mode}. "kind" is readable as a key.
-clog ci require deploy also checks the current target's require list.`
+clog CI require deploy also checks the current target's require list.`

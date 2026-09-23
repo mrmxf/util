@@ -17,7 +17,7 @@ import (
 const ConfigKey = "ci"
 
 // Config is the non-secret CI configuration read from .clog.yaml. See
-// `clog ci --config-help` for the contract.
+// `clog CI --config-help` for the contract.
 type Config struct {
 	Infisical InfisicalConfig        `json:"infisical"`
 	Require   map[string]Requirement `json:"require"`
@@ -64,7 +64,7 @@ var LoadConfig = func() (Config, error) {
 		return cfg, fmt.Errorf("%s: cannot read config: %w", ConfigKey, err)
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return cfg, fmt.Errorf("%s: config does not match the expected shape (clog ci --config-help): %w", ConfigKey, err)
+		return cfg, fmt.Errorf("%s: config does not match the expected shape (clog CI --config-help): %w", ConfigKey, err)
 	}
 	return cfg, nil
 }
@@ -101,7 +101,7 @@ func (c InfisicalConfig) validate() error {
 	}
 	if len(missing) > 0 {
 		sort.Strings(missing)
-		return fmt.Errorf("missing .clog.yaml keys %s (clog ci --config-help)", strings.Join(missing, ", "))
+		return fmt.Errorf("missing .clog.yaml keys %s (clog CI --config-help)", strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -110,7 +110,7 @@ func (c InfisicalConfig) validate() error {
 func (c InfisicalConfig) infisicalEnv(mode string) (string, error) {
 	slug := strings.TrimSpace(c.Env[mode])
 	if slug == "" {
-		return "", fmt.Errorf("ci.infisical.env.%s is not set: map mode %q to an Infisical env slug (clog ci --config-help)", mode, mode)
+		return "", fmt.Errorf("ci.infisical.env.%s is not set: map mode %q to an Infisical env slug (clog CI --config-help)", mode, mode)
 	}
 	return slug, nil
 }
@@ -124,7 +124,7 @@ func (c InfisicalConfig) identityFor(platform Platform, mode string) (key, uuid 
 	}
 	uuid = strings.TrimSpace(c.Identity[string(platform)][key])
 	if uuid == "" {
-		return key, "", fmt.Errorf("ci.infisical.identity.%s.%s is not set: paste the machine identity UUID (clog ci --config-help)", platform, key)
+		return key, "", fmt.Errorf("ci.infisical.identity.%s.%s is not set: paste the machine identity UUID (clog CI --config-help)", platform, key)
 	}
 	return key, uuid, nil
 }

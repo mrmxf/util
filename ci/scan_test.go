@@ -132,7 +132,7 @@ func TestArtifactScanRefIsModeAware(t *testing.T) {
 	}
 }
 
-// The headline regression guard. `clog ci targets` filters by deploy-mode
+// The headline regression guard. `clog CI target list` filters by deploy-mode
 // membership, so a prod-only target reports no dev membership - enumerating
 // scans with it would leave exactly those targets unscanned on every pull
 // request, which is the original bug through a different door.

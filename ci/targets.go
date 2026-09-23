@@ -41,7 +41,7 @@ type Target struct {
 	Require []string       `json:"require"` // secret names this destination needs
 	Modes   []string       `json:"modes"`   // modes it deploys in (default: dev + prod)
 	Dev     map[string]any `json:"dev"`     // per-mode data …
-	Prod    map[string]any `json:"prod"`    // … read with `clog ci target get`
+	Prod    map[string]any `json:"prod"`    // … read with `clog CI target get`
 	Comment string         `json:"comment,omitempty"`
 	// Stack binds the target to one ci.stack entry, so `clog deploy bonfire`
 	// never publishes an artifact this run did not build. Empty means the first
@@ -106,7 +106,7 @@ func TargetNames(cfg Config, mode, kind string) ([]string, error) {
 // {tag} {version} {sha} {mode} expanded. Special key "kind" returns the kind.
 func TargetGet(env Env, cfg Config, mode, name, key string, required bool) (string, error) {
 	if name == "" {
-		return "", fmt.Errorf("$%s is not set: the deploy step runs once per target (clog ci targets)", TargetVar)
+		return "", fmt.Errorf("$%s is not set: the deploy step runs once per target (clog CI target list)", TargetVar)
 	}
 	t, ok := cfg.Targets[name]
 	if !ok {

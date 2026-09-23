@@ -22,7 +22,7 @@ const (
 
 const (
 	// ModeOverrideVar forces the mode, so a laptop can reproduce a CI run:
-	//   CLOG_MODE=prod clog ci policy
+	//   CLOG_MODE=prod clog CI show policy
 	ModeOverrideVar = "CLOG_MODE"
 	// LegacyModeVar is the pre-D-I.12 name, still read (with a warning) so
 	// existing scripts keep working for one release.
@@ -46,7 +46,7 @@ func modeOverride(env Env) (string, error) {
 	case ModeDev, ModeProd:
 		return val, nil
 	case "stage":
-		return "", fmt.Errorf("$%s=stage: staging was removed - a run is %s or %s (clog ci --config-help)", from, ModeDev, ModeProd)
+		return "", fmt.Errorf("$%s=stage: staging was removed - a run is %s or %s (clog CI --config-help)", from, ModeDev, ModeProd)
 	default:
 		return "", fmt.Errorf("$%s=%q is not %s or %s", from, val, ModeDev, ModeProd)
 	}
@@ -88,13 +88,13 @@ var modeCmd = &cobra.Command{
 // envCmd is the pre-D-I.12 name for `ci mode`, kept for one release.
 var envCmd = &cobra.Command{
 	Use:          "env [get <key>]",
-	Short:        "deprecated: use `clog ci mode`",
+	Short:        "deprecated: use `clog CI mode`",
 	Long:         modeHelp,
 	Hidden:       true,
 	SilenceUsage: true,
 	Args:         cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Warn("`clog ci env` is deprecated: use `clog ci mode` (staging was removed, D-I.12)")
+		slog.Warn("`clog CI mode show` is deprecated: use `clog CI mode` (staging was removed, D-I.12)")
 		return runMode(cmd, args)
 	},
 }
@@ -111,10 +111,10 @@ func runMode(cmd *cobra.Command, args []string) error {
 		_, err := fmt.Fprintln(out, d.Mode)
 		return err
 
-	// `clog ci mode prod` validates a forced mode and echoes it, so a snippet
+	// `clog CI mode prod` validates a forced mode and echoes it, so a snippet
 	// can turn its own argument into an override in one line:
 	//
-	//   [ -n "$1" ] && export CLOG_MODE="$(clog ci mode "$1")"
+	//   [ -n "$1" ] && export CLOG_MODE="$(clog CI mode "$1")"
 	//
 	// Sites used to carry a private bc-mode snippet for exactly this, and the
 	// copies drifted. Validation belongs here, where a typo is an error rather
@@ -128,7 +128,7 @@ func runMode(cmd *cobra.Command, args []string) error {
 
 	case args[0] == "get":
 		if len(args) != 2 {
-			return fmt.Errorf("`ci mode get` needs exactly one key, e.g. `clog ci mode get base-url`")
+			return fmt.Errorf("`ci mode get` needs exactly one key, e.g. `clog CI mode get base-url`")
 		}
 		val, err := ModeGet(d.Mode, args[1], modeGetRequired)
 		if err != nil {
@@ -154,7 +154,7 @@ func runMode(cmd *cobra.Command, args []string) error {
 }
 
 // renderValue renders a config value for a shell: scalars as-is, lists one item
-// per line, so `for t in $(clog ci targets)` and `--flag "$(clog ci mode get x)"`
+// per line, so `for t in $(clog CI target list)` and `--flag "$(clog CI mode get x)"`
 // both work without quoting games.
 func renderValue(val any) string {
 	switch v := val.(type) {

@@ -210,7 +210,7 @@ func ArtifactScan(env Env, cfg Config, mode, name string) (ScanAxis, error) {
 
 // ScanTargets lists the targets an artifact sweep should visit.
 //
-// It deliberately does NOT filter by deploy-mode membership. `clog ci targets`
+// It deliberately does NOT filter by deploy-mode membership. `clog CI target list`
 // does, and a target with only a prod: block therefore reports no dev
 // membership - so enumerating with it would leave prod-only targets unscanned
 // on every pull request, which is the original bug through a different door.

@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// RunMarkerVar is set to 1 in the child of `clog ci run`, so a snippet can
+// RunMarkerVar is set to 1 in the child of `clog CI run`, so a snippet can
 // tell it is already running with secrets and must not re-exec itself.
 const RunMarkerVar = "CLOG_CI_RUN"
 

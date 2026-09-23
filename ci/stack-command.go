@@ -25,9 +25,9 @@ var stackCmd = &cobra.Command{
 With no arguments it lists every stack name, in declaration order. The first is
 the default for ` + "`clog watch`" + `, so order is meaningful.
 
-  clog ci stack                       every name, one per line
-  clog ci stack get tools             tools for every stack, space separated
-  clog ci stack get make --stack bonfire
+  clog CI stack                       every name, one per line
+  clog CI stack list tools             tools for every stack, space separated
+  clog CI stack list make --stack bonfire
 
 The selector follows the verbs: empty or "all" means every stack, a name means
 that one. ` + "`tools`" + `, ` + "`chk`" + ` and ` + "`make`" + ` are unioned across the selected

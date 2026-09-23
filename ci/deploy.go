@@ -49,7 +49,7 @@ func (d Deployment) GetOr(key, def string) (string, error) {
 type Deployer func(Deployment) error
 
 // deployers maps a target kind to its implementation. A kind may be declared
-// in knownKinds (so `clog ci targets` validates it) before a deployer exists —
+// in knownKinds (so `clog CI target list` validates it) before a deployer exists —
 // Deploy reports that as a clear error rather than skipping the target.
 var deployers = map[string]Deployer{
 	KindGitHubPages:    deployGitHubPages,

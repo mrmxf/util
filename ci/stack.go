@@ -192,7 +192,7 @@ func (s Stack) validate(i int) error {
 // follows.
 func Stacks(cfg Config) ([]Stack, error) {
 	if len(cfg.Stack) == 0 {
-		return nil, fmt.Errorf("%s is not set: name this repo's stack (one of %s) - clog ci --config-help",
+		return nil, fmt.Errorf("%s is not set: name this repo's stack (one of %s) - clog CI --config-help",
 			StackKey, strings.Join(knownStackTypes, ", "))
 	}
 	seen := make(map[string]int, len(cfg.Stack))

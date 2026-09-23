@@ -24,8 +24,8 @@ var scanCmd = &cobra.Command{
 
 Two axes, because vulnerabilities and secrets are independent questions:
 
-  clog ci scan                     the source sweep: the worktree
-  clog ci scan --target registry   the artifact sweep: what that target ships
+  clog CI scan                     the source sweep: the worktree
+  clog CI scan --target registry   the artifact sweep: what that target ships
 
 The source sweep runs in every repo, with or without targets. That is the axis
 covering a Go library, a Hugo asset pipeline and a TinyGo module graph - three

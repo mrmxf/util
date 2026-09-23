@@ -73,7 +73,7 @@ func Require(env Env, verb string) error {
 		if verb == "build" || verb == "deploy" {
 			cmd = "clog " + verb
 		}
-		fix := fmt.Sprintf("secrets %s (they come from %s): run under  clog ci run -- %s",
+		fix := fmt.Sprintf("secrets %s (they come from %s): run under  clog CI run -- %s",
 			strings.Join(missingEnv, ", "), where, cmd)
 		if env.Getenv(RunMarkerVar) == "1" {
 			fix = fmt.Sprintf("secrets %s: add them in %s", strings.Join(missingEnv, ", "), where)
