@@ -3,11 +3,16 @@
 #
 #  clog.gitlab-ci.yml - GitLab twin of the mrmxf/util GitHub workflows
 #
-#  Same shape as build-golang / deploy-s3 on GitHub: no CI/CD variables hold
-#  secrets. Each job gets clog, asks ci.policy (clog ci should) whether to act,
-#  and runs its work under `clog ci run`, which logs in to Infisical with the
+#  Same shape as build.yaml / deploy-s3 on GitHub: no CI/CD variables hold
+#  secrets. Each job gets clog, asks ci.policy (clog CI should) whether to act,
+#  and runs its work under `clog CI run`, which logs in to Infisical with the
 #  job's OIDC id_token. A run is dev or prod (no staging) and deploys once per
-#  ci.targets entry. Config: clog ci --config-help.
+#  ci.targets entry. Config: clog CI --config-help.
+#
+#  This tracks build.yaml's generation, not build-golang's: the toolchain comes
+#  from ci.stack rather than being hardcoded per language, the build writes its
+#  SARIF into the canonical artifact tree, and the deploy probes what it just
+#  published. A repo declares its stack once and both platforms read it.
 #
 #  Use from a project's .gitlab-ci.yml:
 #
@@ -40,8 +45,15 @@ spec:
       description: GitHub owner/repo holding the clog release
     artifact-paths:
       type: array
-      default: ["tmp/"]
+      # The canonical layout: _clog_build holds artifacts, the check stash and
+      # SARIF; _clog_deploy holds receipts and probe findings. kodata is here
+      # because a Hugo site's publishDir is set in hugo.yaml rather than by
+      # clog, so those repos still publish from outside the tree.
+      default: ["_clog_build/", "_clog_deploy/", "kodata/"]
       description: build outputs handed from clog-build to clog-deploy
+    stack:
+      default: ""
+      description: which ci.stack entry to act on ('' = every stack)
 ---
 .clog-prepare:
   image: $[[ inputs.image ]]
@@ -61,14 +73,24 @@ spec:
         export PATH="$CLOG_DIR:$PATH"
       fi
     - clog --version
-    - clog ci policy
+    - clog CI show policy
 
 clog-build:
   extends: .clog-prepare
   stage: build
   script:
-    - clog ci should build || exit 0
-    - clog ci run -- bash -c 'clog ci require build || exit 1; if [ -z "${MAKE:-}" ]; then clog build; else clog build MAKE "$MAKE"; fi'
+    - clog CI should build || exit 0
+    # The stack decides the toolchain. clog never installs these behind your
+    # back during a build - a verb that quietly pulls binaries onto a machine
+    # while claiming to check a branch is the wrong supply-chain posture - so
+    # the install is explicit, here, where the log shows it.
+    - |
+      for t in $(clog CI stack list tools --stack "$[[ inputs.stack ]]"); do
+        clog Install "$t" --verbose || exit 1
+      done
+    # No --fast, and no input to pass one: --fast makes no claim about the
+    # branch, so it has no business in CI.
+    - clog CI run -- bash -c 'clog CI require build || exit 1; clog build $[[ inputs.stack ]]'
   artifacts:
     when: always
     expire_in: 1 day
@@ -79,10 +101,14 @@ clog-deploy:
   stage: deploy
   needs: [clog-build]
   script:
-    - clog ci should deploy || exit 0
+    - clog CI should deploy || exit 0
     # one clog deploy per ci.targets entry for this mode (D-I.14)
     - |
-      for t in $(clog ci targets); do
-        echo "--- deploy $t ($(clog ci mode))"
-        CLOG_TARGET="$t" clog ci run -- bash -c 'clog ci require deploy || exit 1; if [ -z "${MAKE:-}" ]; then clog deploy; else clog deploy MAKE "$MAKE"; fi' || exit 1
+      for t in $(clog CI target list); do
+        echo "--- deploy $t ($(clog CI mode show))"
+        CLOG_TARGET="$t" clog CI run -- bash -c 'clog CI require deploy || exit 1; clog CI deploy --target "$CLOG_TARGET"' || exit 1
       done
+    # Probe what was just published. It runs after the deploy because that is
+    # the only point at which the questions mean anything, and it does not gate:
+    # the deploy has already happened, so failing here could not un-publish it.
+    - clog CI probe || true
