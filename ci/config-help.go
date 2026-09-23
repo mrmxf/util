@@ -12,14 +12,15 @@ const configHelp = `clog CI --config-help : CI secrets via Infisical OIDC
 
 STATUS
   implemented: config contract, clog CI run / require / policy / should / get / mode / targets /
-  target, util workflows v1. No staging: a run is dev or prod (D-I.12).
+  target, the mrmxf/clog workflows. No staging: a run is dev or prod (D-I.12).
 
 MODEL
   CI yaml     : triggers + OIDC permission + one "clog CI run -- clog <verb>" per job. No secrets.
   .clog.yaml  : every non-secret value, incl. which Infisical project/env/identity to use.
   Infisical   : secrets only. CI logs in with the platform OIDC token (no stored credential).
-  workflows   : mrmxf/util/.github/workflows/{build-golang,build-hugo,deploy-s3}.yaml@workflows-v1
-                  (first step mrmxf/util/.github/actions/clog-prepare); GitLab: util/gitlab/clog.gitlab-ci.yml
+  workflows   : mrmxf/clog/.github/workflows/{build-check,deploy-probe}.yaml@workflows
+                  (@workflows moves; pin a release @vX.Y.Z to hold still)
+                  (first step mrmxf/clog/.github/actions/clog-prepare); GitLab: mrmxf/clog gitlab/clog.gitlab-ci.yml
   gate        : clog CI show policy --format env >> $GITHUB_ENV
                   -> build_mode deploy_mode do_build do_deploy deploy_targets
                   -> if: env.do_build == 'true'   /   if: env.do_deploy == 'true'
@@ -100,7 +101,7 @@ MACHINE IDENTITIES (one per platform x {dev,prod}; name e.g. gh-<org>-dev, gl-<o
       Subject  dev-uuid  : repo:<owner>/<repo>:ref:refs/*        # refs/* not refs/heads/*: a tag
                                                                    # whose release is not prod is a dev build
       Subject  prod-uuid : repo:<owner>/<repo>:ref:refs/tags/v*
-      Claims (optional)  : job_workflow_ref = <owner>/util/.github/workflows/*@refs/tags/workflows-v1
+      Claims             : none - see GOTCHAS (job_workflow_ref)
     GitLab CI (gitlab.com)
       OIDC Discovery URL : https://gitlab.com
       Issuer             : https://gitlab.com
@@ -117,7 +118,10 @@ GOTCHAS
     refs/heads/* covers feature/x; repo:<owner>/* would admit EVERY repo of the owner.
   - Subject format drifts: GitHub repos created after 2026-07-15 may present
     repo:<owner>@<owner-id>/<repo>@<repo-id>:... Read the real claims (below) before binding.
-  - Reusable workflows: sub is the CALLER repo; the util workflow shows up in job_workflow_ref.
+  - Reusable workflows: sub is the CALLER repo; the shared workflow shows up in job_workflow_ref.
+    Do NOT bind a job_workflow_ref claim. It changes with every workflow path, repo and tag a
+    caller pins (@workflows, @vX.Y.Z), so no one value holds across a fleet mid-migration, and
+    a stale one 403s every job. sub already limits which repos and refs authenticate.
   - Scheduled prod runs present a BRANCH subject (refs/heads/<default>). A tags-only prod
     identity rejects them. Either do not schedule prod, or bind prod to a GitHub Environment:
     job "environment: prod" -> sub = repo:<owner>/<repo>:environment:prod.
