@@ -478,8 +478,13 @@ snippets:
 
   deploy: |
     eval "$(clog verb-args "$@")" || exit 1
+    # verb-args parses [dev|prod] [stack] and drops every other flag, so
+    # --dry-run is picked up here. Publishing is the one verb worth
+    # rehearsing: it is the only one that changes the outside world.
+    DRY=""
+    for a in "$@"; do [ "$a" = "--dry-run" ] && DRY="--dry-run"; done
     clog CI stack echo deploying --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
-    clog CI deploy --mode "$VERB_MODE" --stack "${VERB_STACK:-all}"
+    clog CI deploy --mode "$VERB_MODE" --stack "${VERB_STACK:-all}" $DRY
 
   bc-artifacts: echo "tmp/artifacts"
   bc-main-prod-tag: yq -r 'first(.[] | select(.type=="main" and .build=="prod") | .version)' "$(clog BC releases get path)"

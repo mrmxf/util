@@ -52,7 +52,9 @@ type Deployer func(Deployment) error
 // in knownKinds (so `clog ci targets` validates it) before a deployer exists —
 // Deploy reports that as a clear error rather than skipping the target.
 var deployers = map[string]Deployer{
-	KindGitHubPages: deployGitHubPages,
+	KindGitHubPages:    deployGitHubPages,
+	KindGitHubRelease:  deployGitHubRelease,
+	KindCloudflarePage: deployCloudflarePages,
 }
 
 // execCommand runs name in dir and returns its combined output. A package var
