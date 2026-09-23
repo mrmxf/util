@@ -39,6 +39,8 @@ tools:
     recipepath: "recipes/slsa-verifier.yaml"
   staticcheck:
     recipepath: "recipes/staticcheck.yaml"
+  tinygo:
+    recipepath: "recipes/tinygo.yaml"
   trivy:
     recipepath: "recipes/trivy.yaml"
   yq:

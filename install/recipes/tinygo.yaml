@@ -1,0 +1,63 @@
+tinygo:
+  description: "TinyGo — Go compiler for microcontrollers and WASM"
+  check:
+    name: "tinygo is installed"
+    try:
+      - "tinygo version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  tinygo is installed"'
+    else: 'clog Log -W "  tinygo not found — install with: clog Install tinygo"'
+  version:
+    strategy: github-latest
+    repo: tinygo-org/tinygo
+    tag-prefix: "v"
+  platforms:
+    # TinyGo needs its whole lib tree, not just a binary, so the packaged
+    # builds are used rather than extracting one file from a tarball.
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: tinygo
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: tinygo
+    linux-deb/arm64:
+      arch: arm64
+      download:
+        strategy: github-release-asset
+        repo: tinygo-org/tinygo
+        filter:
+          - "_arm64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-deb/amd64:
+      arch: amd64
+      download:
+        strategy: github-release-asset
+        repo: tinygo-org/tinygo
+        filter:
+          - "_amd64.deb"
+      install:
+        strategy: install-deb
+        sudo: true
+    linux-rpm/arm64:
+      arch: arm64
+      download:
+        strategy: github-release-asset
+        repo: tinygo-org/tinygo
+        filter:
+          - ".aarch64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true
+    linux-rpm/amd64:
+      arch: amd64
+      download:
+        strategy: github-release-asset
+        repo: tinygo-org/tinygo
+        filter:
+          - ".x86_64.rpm"
+      install:
+        strategy: install-rpm
+        sudo: true

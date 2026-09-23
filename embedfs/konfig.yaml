@@ -172,6 +172,47 @@ check:
           clog BC stash log -1 check -2 lint -E "lint found issues"
           exit 1
 
+# ▬▬▬▬ test - one check phase, dispatched per stack ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+#  The golang, golang-lib and container stacks all name `test` in their default
+#  chk list, and until v1.0.0 no check group of that name existed - so every
+#  repo adopting one of those stacks resolved a phase that could not run. It was
+#  invisible because `clog BC flow` takes phase names on trust and clog-sample
+#  happened to define check.test locally.
+#
+#  Like lint, this dispatches per stack rather than repo-wide: a tree holding
+#  firmware beside a host tool has two test commands, not one.
+  test:
+    blocks:
+      - name: test
+        try: |
+          ERR=0
+          for s in $(clog CI stack list names --stack "${CLOG_STACK:-}"); do
+            t="$(clog CI stack get type --stack "$s")"
+            case "$t" in
+              golang|golang-lib|container)
+                go vet ./...  || ERR=1
+                go test ./... || ERR=1
+                ;;
+              tinygo)
+                # the host half only; firmware needs hardware to run on
+                go vet ./...  || ERR=1
+                go test ./... || ERR=1
+                ;;
+              hugo)
+                clog BC stash log -1 check -2 test -3 "$s" -I "test $s (hugo): no test suite"
+                ;;
+              *)
+                clog BC stash log -1 check -2 test -3 "$s" -W "no test rule for stack type $t"
+                ;;
+            esac
+          done
+          exit $ERR
+        ok:    clog BC stash log -1 check -2 test -S "tests passed"
+        catch: |
+          clog BC stash log -1 check -2 test -E "tests failed"
+          echo "$STDOUTERR"
+          exit 1
+
 # ▬▬▬▬ scan - two axes: the worktree, then each target's artifact ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
 #  `vuln` and `secrets` name WHAT is examined, never which tool examines it, so
 #  swapping Trivy is a change here rather than a config migration across every
