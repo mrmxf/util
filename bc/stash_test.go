@@ -213,7 +213,7 @@ func TestStashFunctions(t *testing.T) {
 			// been failing in clog-mrmxf; corrected here to the actual default.)
 			Convey("It should use the default stash path", func() {
 				path := getStashPath()
-				absPath, _ := filepath.Abs("tmp/ClogBcStash.yaml")
+				absPath, _ := filepath.Abs(StashPathDefault)
 				So(path, ShouldEqual, absPath)
 			})
 		})

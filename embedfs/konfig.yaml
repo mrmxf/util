@@ -47,7 +47,7 @@ clog:
   # path to the yaml file defining release history - see semver package
   releases-path: "releases.yaml"  # release & build tracking
   # path to a bash/zsh file that stashes variables between job stages
-  stash-path: "tmp/BC-stash.yaml"
+  stash-path: "_clog_build/check/stash.yaml"
   # these are the ENV variables that are searched for by various tools
   # override these to change the actual ENV variables used
   env:
@@ -263,10 +263,10 @@ check:
       - name: source sweep
         try: |
           eval "$(clog CI scan show --format env)"
-          mkdir -p tmp/scan
+          mkdir -p _clog_build/scan
           ERR=0
           if [ "$scan_source_vuln" != "none" ]; then
-            ARGS="--scanners vuln --severity $scan_source_severity --format sarif --output tmp/scan/source-vuln.sarif"
+            ARGS="--scanners vuln --severity $scan_source_severity --format sarif --output _clog_build/scan/source-vuln.sarif"
             [ "$scan_source_ignore_unfixed" = "true" ] && ARGS="$ARGS --ignore-unfixed"
             [ -f "$scan_source_ignorefile" ] && ARGS="$ARGS --ignorefile $scan_source_ignorefile"
             [ -n "$scan_source_skip_dirs" ] && ARGS="$ARGS --skip-dirs $scan_source_skip_dirs"
@@ -277,7 +277,7 @@ check:
           fi
           if [ "$scan_source_secrets" = "true" ]; then
             trivy fs --scanners secret --format sarif \
-              --output tmp/scan/source-secret.sarif "$scan_source_ref" || ERR=1
+              --output _clog_build/scan/source-secret.sarif "$scan_source_ref" || ERR=1
           fi
           exit $ERR
         ok:    clog BC stash log -1 check -2 scan -3 source -S "source sweep clean"
@@ -296,18 +296,18 @@ check:
               image)
                 # a tarball on a build that is not deploying, a reference when it is
                 REF="$scan_artifact_ref"
-                [ -f tmp/image.tar ] && REF="--input tmp/image.tar"
+                [ -f _clog_build/artifacts/image.tar ] && REF="--input _clog_build/artifacts/image.tar"
                 trivy image --severity "$scan_artifact_severity" --format sarif \
-                  --output "tmp/scan/$t-vuln.sarif" $REF || ERR=1
+                  --output "_clog_build/scan/$t-vuln.sarif" $REF || ERR=1
                 ;;
               fs)
                 trivy fs --scanners vuln --severity "$scan_artifact_severity" --format sarif \
-                  --output "tmp/scan/$t-vuln.sarif" "$scan_artifact_ref" || ERR=1
+                  --output "_clog_build/scan/$t-vuln.sarif" "$scan_artifact_ref" || ERR=1
                 ;;
             esac
             if [ "$scan_artifact_secrets" = "true" ] && [ -d "$scan_artifact_ref" ]; then
               trivy fs --scanners secret --format sarif \
-                --output "tmp/scan/$t-secret.sarif" "$scan_artifact_ref" || ERR=1
+                --output "_clog_build/scan/$t-secret.sarif" "$scan_artifact_ref" || ERR=1
             fi
           done
           exit $ERR
@@ -486,7 +486,7 @@ snippets:
     clog CI stack echo deploying --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
     clog CI deploy --mode "$VERB_MODE" --stack "${VERB_STACK:-all}" $DRY
 
-  bc-artifacts: echo "tmp/artifacts"
+  bc-artifacts: echo "_clog_build/artifacts"
   bc-main-prod-tag: yq -r 'first(.[] | select(.type=="main" and .build=="prod") | .version)' "$(clog BC releases get path)"
   bc-log-divider: eval "$(clog Crayon)";for i in {1..8};do HR="$HR\e[09${i}m▬▬▬▬▬▬▬▬▬$cE|";done;printf "$HR$cX\n"
   # worker function instagram ------------------------------------------------------------------------------------------
@@ -511,7 +511,7 @@ snippets:
   # ▼▼▼ bc-deploy-s3 ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   bc-deploy-s3: |
     # $YAML=array with many lines like this
-    #     - {src:"tmp/clog-amd-lnx",    dst:"$BKT/clog-amd-lnx",    cHi:"$cLnx",cFn:"$cAmd"}
+    #     - {src:"_clog_build/artifacts/clog-amd-lnx", dst:"$BKT/clog-amd-lnx",    cHi:"$cLnx",cFn:"$cAmd"}
     fAwsCp() {
       # this function will perform aws cp on each file with cHighlight and cFilename
       local src dst colHi colFn
@@ -603,7 +603,7 @@ snippets:
   # ▼▼▼ bc-golang ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   #  $EXE   is the executable name - overrides the default of $PROJECT
   #  $TITLE is the title string for semver
-  #  artifacts appear in tmp/
+  #  artifacts appear in _clog_build/artifacts/
   #  you may have to make a project copy of this function to make semver work
   bc-golang: |
     # version stamp from git (clog BC gen buildinfo), not releases.yaml. prod mode
@@ -667,18 +667,20 @@ snippets:
       exit 1; }
     version="$(clog BC gen buildinfo "$mode" --format version)"
 
-    clog BC stash log -1 build -2 golang -3 start -I "⚒️  golang build $EXE $version ($mode) →$cF tmp/$EXE-cpu-os"
+    clog BC stash log -1 build -2 golang -3 start -I "⚒️  golang build $EXE $version ($mode) →$cF _clog_build/artifacts/$EXE-cpu-os"
 
-    # ensure tmp folder exists
-    mkdir -p tmp
+    # Canonical build output: _clog_build/artifacts/. Named, gitignored and
+    # the same in every repo, so a debugger looks rather than guesses.
+    out="_clog_build/artifacts"
+    mkdir -p "$out"
     app="$EXE"                             # command you type to run the app
 
-      fGoBuild tmp/$app-amd-lnx     linux   amd64; ((ERR+=$?))
-    # fGoBuild tmp/$app-amd-win.exe windows amd64; ((ERR+=$?))
-      fGoBuild tmp/$app-amd-mac     darwin  amd64; ((ERR+=$?))
-      fGoBuild tmp/$app-arm-lnx     linux   arm64; ((ERR+=$?))
-    # fGoBuild tmp/$app-arm-win.exe windows arm64; ((ERR+=$?))
-      fGoBuild tmp/$app-arm-mac     darwin  arm64; ((ERR+=$?))
+      fGoBuild "$out"/$app-amd-lnx     linux   amd64; ((ERR+=$?))
+    # fGoBuild "$out"/$app-amd-win.exe windows amd64; ((ERR+=$?))
+      fGoBuild "$out"/$app-amd-mac     darwin  amd64; ((ERR+=$?))
+      fGoBuild "$out"/$app-arm-lnx     linux   arm64; ((ERR+=$?))
+    # fGoBuild "$out"/$app-arm-win.exe windows arm64; ((ERR+=$?))
+      fGoBuild "$out"/$app-arm-mac     darwin  arm64; ((ERR+=$?))
 
     if [ $ERR -gt 0 ]; then
       clog BC stash log -1 build -2 golang -3 status -E "❌ golang build failed with $ERR errors"
@@ -707,7 +709,7 @@ snippets:
     export KO_DATA_DATE_EPOCH=$(git log -1 --format='%ct')     # date on image
 
     wd="$(pwd)"
-    mkdir -p "$wd/tmp"
+    mkdir -p "$wd/_clog_build/artifacts"
     VERBOSE="" # --verbose
     cd www-podserver/
     # A LOCAL BUILD NEVER PUSHES. `clog build` means "am I ready to push", so on
@@ -729,7 +731,7 @@ snippets:
       ((ERR+=$?))
     else
       ko build $VERBOSE --base-import-paths --sbom=spdx --push=false \
-        --tarball="$wd/tmp/image.tar" --tags "$tag1" .
+        --tarball="$wd/_clog_build/artifacts/image.tar" --tags "$tag1" .
       ((ERR+=$?))
     fi
     cd "$wd"
@@ -762,7 +764,7 @@ snippets:
       exit 0
     godocslurp: |
       eval "$(clog Crayon)"
-      DST="./tmp/kodocs"
+      DST="./_clog_build/artifacts/kodocs"
       PKG="$(go list -m)"
       PORT="6060"
       if $(which wget > /dev/null); then
@@ -779,7 +781,7 @@ snippets:
       fi
       mkdir -p $DST
       rm -rf "$DST"  && mkdir -p "$DST"
-      echo "check tmp/kodocs"
+      echo "check _clog_build/artifacts/kodocs"
       # wget parameters
       # (-r --recursive)(-np --no-parent)(-k --convert-links)(-p --page-requisites)
       # (-E --adjust-extension)(-e --execute)(-P --directory-prefix)

@@ -182,7 +182,7 @@ func ResetStash() error {
 func getStashPath() string {
 	stashPath := StashPath()
 	if stashPath == "" {
-		stashPath = "tmp/ClogBcStash.yaml"
+		stashPath = StashPathDefault
 	}
 
 	absPath, err := filepath.Abs(stashPath)
