@@ -243,7 +243,7 @@ check:
           echo "$STDOUTERR"
           exit 1
 
-# ▬▬▬▬ scan - two axes: the worktree, then each target's artifact ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+# ▬▬▬▬ scan - two axes: the worktree here, each target's artifact in scan-artifacts ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
 #  `vuln` and `secrets` name WHAT is examined, never which tool examines it, so
 #  swapping Trivy is a change here rather than a config migration across every
 #  repo. The source sweep runs in every repo with or without targets: that is
@@ -286,6 +286,14 @@ check:
           echo "$STDOUTERR"
           exit 1
 
+# ▬▬▬▬ scan-artifacts - what each target ships, AFTER the make phases ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+#  Not a stack chk phase, on purpose: chk phases run BEFORE make, when a clean
+#  checkout has no _clog_build/artifacts to sweep. `build` runs this group in a
+#  second flow once the artifacts exist. It used to sit in check.scan, where a
+#  prod build from a fresh clone (every release) failed on a missing directory
+#  and a laptop build swept whatever a PREVIOUS build had left behind.
+  scan-artifacts:
+    blocks:
       - name: artifact sweeps
         try: |
           ERR=0
@@ -466,7 +474,9 @@ snippets:
       clog BC flow --reset --fast --build "$MAKE"
     else
       CHK="$(clog CI stack list chk --stack "$VERB_STACK")" || exit 1
-      clog BC flow --reset --check "$CHK" --build "$MAKE"
+      clog BC flow --reset --check "$CHK" --build "$MAKE" || exit 1
+      # the artifacts exist only now. MAKE="" so this flow builds nothing more.
+      MAKE="" clog BC flow --check scan-artifacts
     fi
 
   watch: |
