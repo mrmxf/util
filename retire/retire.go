@@ -56,10 +56,37 @@ func Command(name, use, why string) *cobra.Command {
 		SilenceUsage:       true, // the replacement is the useful output, not a usage block
 		SilenceErrors:      false,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("`%s` was retired in %s\n  why: %s\n  use: %s",
-				cmd.CommandPath(), Version, why, use)
+			return retired(cmd, use, why)
 		},
 	}
+}
+
+// Namespace retires the old form of a command whose name survived as a
+// namespace - `clog BC semver <needs> <have>` became `clog BC semver satisfies`,
+// bare `clog CI stack` became `clog CI stack list`.
+//
+// Command cannot cover these: the name is still in use, and the old arguments
+// are values, not a word to register. Left alone, cobra runs a parent that has
+// no RunE as help and exits 0 WHATEVER follows it, so the old form "passed":
+// every `try: clog BC semver ...` version check went green on any version.
+//
+// Invoking the namespace itself now fails with the same message as Command.
+// Its subcommands and --help are untouched, and unknown flags the old form took
+// are ignored so the rename, not a flag error, is what the reader is told.
+func Namespace(cmd *cobra.Command, use, why string) {
+	cmd.Args = cobra.ArbitraryArgs
+	cmd.FParseErrWhitelist.UnknownFlags = true
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = false
+	cmd.Run = nil
+	cmd.RunE = func(c *cobra.Command, args []string) error {
+		return retired(c, use, why)
+	}
+}
+
+func retired(cmd *cobra.Command, use, why string) error {
+	return fmt.Errorf("`%s` was retired in %s\n  why: %s\n  use: %s",
+		cmd.CommandPath(), Version, why, use)
 }
 
 // Add registers a retired command on parent. It is the common case and keeps
