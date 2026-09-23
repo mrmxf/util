@@ -83,6 +83,36 @@ check:
           [ "$(clog CI mode)" = "prod" ] && XIT=1 && FLAG="-E"
           clog BC stash log -1 check -2 pre-build -3 "tree clean" $FLAG "   working tree NOT clean"
           exit $XIT
+      - name: go.work does not mask the module pins
+        try: |
+          # A go.work puts sibling modules on the build path in place of the
+          # versions go.mod pins, so a tree can build green for months against
+          # working-copy source while its pins are inconsistent. Not
+          # hypothetical: clog-sample paired bc v0.13.0 with buildinfo v0.12.0
+          # for days, and the first CI run it ever had was the first thing to
+          # notice.
+          #
+          # A runner has no workspace, so in CI this is an error. On a laptop
+          # the workspace is usually deliberate - it is how util and its
+          # consumers are developed together - so there it is a warning.
+          #
+          # `go env GOWORK` prints the literal "off" when GOWORK=off, so an
+          # emptiness test alone would read that as a workspace build.
+          w="$(go env GOWORK 2>/dev/null)"
+          [ -z "$w" ] || [ "$w" = "off" ] && exit 0
+          [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 1
+          exit 0
+        ok: |
+          w="$(go env GOWORK 2>/dev/null)"
+          if [ -z "$w" ] || [ "$w" = "off" ]; then
+            clog BC stash log -1 check -2 pre-build -3 "go.work" -I "Ok building from the go.mod pins"
+          else
+            clog BC stash log -1 check -2 pre-build -3 "go.work" -W "   go.work is active: this build does NOT use the go.mod pins (check with GOWORK=off go build ./...)"
+          fi
+        catch: |
+          clog BC stash log -1 check -2 pre-build -3 "go.work" -E "   CI is using $(go env GOWORK) - the go.mod pins are not what is being built"
+          exit 1
+
       - try: |
           [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] && exit 0
           # the check wants "not ahead"; `is ahead` is true when it IS ahead
