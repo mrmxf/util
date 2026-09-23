@@ -484,7 +484,15 @@ snippets:
     DRY=""
     for a in "$@"; do [ "$a" = "--dry-run" ] && DRY="--dry-run"; done
     clog CI stack echo deploying --stack "$VERB_STACK" --mode "$VERB_MODE" || exit 1
-    clog CI deploy --mode "$VERB_MODE" --stack "${VERB_STACK:-all}" $DRY
+    clog CI deploy --mode "$VERB_MODE" --stack "${VERB_STACK:-all}" $DRY || exit 1
+
+    # Probe what was just published. This runs after the deploy because that
+    # is the only time the questions mean anything - a site that is not yet
+    # served cannot be serving its own .git. Findings are reported, not fatal:
+    # the deploy has already happened, so failing here could not un-publish
+    # it, and the useful thing is to say so in the same run. A pipeline that
+    # gates a promotion on the answer adds --strict.
+    clog CI probe --mode "$VERB_MODE" $DRY
 
   bc-artifacts: echo "_clog_build/artifacts"
   bc-main-prod-tag: yq -r 'first(.[] | select(.type=="main" and .build=="prod") | .version)' "$(clog BC releases get path)"

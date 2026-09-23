@@ -98,7 +98,7 @@ jobs:
             clog build "$build_mode" $BUILD_STACK'
 
       # The sweeps run inside `clog build` as check phases and write SARIF to
-      # tmp/scan, so the workflow does not iterate targets - which a `uses:`
+      # _clog_build/scan, so the workflow does not iterate targets - which a `uses:`
       # step cannot do anyway. It cannot upload the directory either: since
       # 2025-07 GitHub rejects several SARIF runs sharing one category, and
       # upload-sarif takes a single category per call. So the files are listed
@@ -108,8 +108,8 @@ jobs:
         if: always() && env.do_build == 'true'
         run: |
           files='[]'
-          if ls tmp/scan/*.sarif >/dev/null 2>&1; then
-            files="$(cd tmp/scan && ls *.sarif | jq -R . | jq -sc .)"
+          if ls _clog_build/scan/*.sarif >/dev/null 2>&1; then
+            files="$(cd _clog_build/scan && ls *.sarif | jq -R . | jq -sc .)"
           fi
           echo "files=$files" >> "$GITHUB_OUTPUT"
           clog Log -I "scan results: $files"
@@ -120,7 +120,7 @@ jobs:
         with:
           name: scan-sarif
           retention-days: 2
-          path: tmp/scan
+          path: _clog_build/scan
 
       - name: upload artifact ${{ env.ci_artifact }}
         if: env.do_build == 'true' && env.ci_artifact != ''
@@ -129,8 +129,8 @@ jobs:
           name: ${{ env.ci_artifact }}
           retention-days: 2
           path: |
-            kodata
-            tmp
+            _clog_build
+            _clog_deploy
 
       - name: notify-team (slack, HOOK_SLACK from Infisical)
         if: always() && env.do_build == 'true'
@@ -159,10 +159,10 @@ jobs:
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           name: scan-sarif
-          path: tmp/scan
+          path: _clog_build/scan
 
       - name: publish ${{ matrix.file }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: tmp/scan/${{ matrix.file }}
+          sarif_file: _clog_build/scan/${{ matrix.file }}
           category: ${{ matrix.file }}
