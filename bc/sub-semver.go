@@ -55,7 +55,7 @@ func parseSemVer(name string, version string) (SemVer, error) {
 
 // semverCmd provides BC (build-control) semantic version comparison operations.
 var semverCmd = &cobra.Command{
-	Use:   "semver",
+	Use:   "satisfies <needs> <have>",
 	Short: "BC semver  <needs> <installed> - version comparison",
 	Long: `BC (build-control) semantic version comparison validates version compatibility:
 - Compares two semantic version strings
@@ -131,5 +131,4 @@ Examples:
 
 func init() {
 	// Add semver subcommand to the main BC command
-	Command.AddCommand(semverCmd)
 }

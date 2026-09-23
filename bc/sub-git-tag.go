@@ -21,7 +21,7 @@ var tagCmd = &cobra.Command{
 - List existing tags
 - Tag validation and verification
 
-Use 'clog bc git tag <command> --help' for more information about specific tag commands.`,
+Use 'clog BC git tag <command> --help' for more information about specific tag commands.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help when no subcommands are provided
 		cmd.Help()

@@ -31,5 +31,4 @@ var releaseBuildCmd = &cobra.Command{
 
 func init() {
 	// Add build subcommand to the releases command
-	releasesCmd.AddCommand(releaseBuildCmd)
 }

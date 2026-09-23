@@ -31,5 +31,4 @@ var releaseDateCmd = &cobra.Command{
 
 func init() {
 	// Add date subcommand to the releases command
-	releasesCmd.AddCommand(releaseDateCmd)
 }

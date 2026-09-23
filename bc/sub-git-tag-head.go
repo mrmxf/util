@@ -83,5 +83,4 @@ If no tag points to HEAD, it will indprint blank.`,
 
 func init() {
 	// Add head command to the tag command
-	tagCmd.AddCommand(headCmd)
 }

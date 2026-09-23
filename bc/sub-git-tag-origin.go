@@ -106,5 +106,4 @@ If no tags exist on origin, it will print blank.`,
 
 func init() {
 	// Add origin command to the tag command
-	tagCmd.AddCommand(originCmd)
 }

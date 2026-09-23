@@ -21,68 +21,101 @@ var treeCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Short:         "BC (build-control) Git tree status operations",
-	Long: `BC (build-control) Git tree status operations provide git working tree checks:
-- Check if tree is clean
-- Check if tree is ahead of remote
-- Check if tree is behind remote
-- Check if tree has unstaged changes
+	Long: `BC (build-control) Git tree status operations ask a question about the
+working tree and answer with an exit code only - nothing is printed.
 
-Use 'clog bc git tree <command> --help' for more information about specific tree commands.`,
+  clog BC git tree is clean       0 if the tree is clean
+  clog BC git tree is ahead       0 if the tree is AHEAD of origin
+  clog BC git tree is behind      0 if the tree is BEHIND origin
+  clog BC git tree has unstaged   0 if there ARE unstaged changes
+
+Every one of these is true when it exits 0, so a shell reads the way it looks:
+
+  if clog BC git tree is ahead; then git push; fi
+  clog BC git tree is clean || exit 1
+
+Before v1.0.0 ` + "`ahead`" + `, ` + "`behind`" + ` and ` + "`unstaged`" + ` were inverted - they exited 0
+when the tree was NOT in that state - so the line above did the opposite of
+what it said. The old spellings are retired rather than fixed in place,
+because a predicate that changes meaning while keeping its name is the one
+rename that cannot fail loudly.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Print help when no subcommands are provided
-		cmd.Help()
+		cmd.Help() //nolint:errcheck // help output is best-effort
 	},
 }
 
-// treeCleanCmd checks if the git tree is clean
+// treeIsCmd groups the state predicates: `clog BC git tree is <state>`.
+var treeIsCmd = &cobra.Command{
+	Use:           "is",
+	SilenceErrors: true,
+	SilenceUsage:  true,
+	Short:         "is the tree clean, ahead or behind? (exit code only)",
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help() //nolint:errcheck // help output is best-effort
+	},
+}
+
+// treeHasCmd groups the possession predicates: `clog BC git tree has <thing>`.
+var treeHasCmd = &cobra.Command{
+	Use:           "has",
+	SilenceErrors: true,
+	SilenceUsage:  true,
+	Short:         "does the tree have unstaged changes? (exit code only)",
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help() //nolint:errcheck // help output is best-effort
+	},
+}
+
+// treeCleanCmd - `clog BC git tree is clean`
 var treeCleanCmd = &cobra.Command{
 	Use:           "clean",
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	Short:         "Check if git tree is clean",
-	Long:          "Exits with 0 if tree is clean, otherwise exits with 1",
+	Short:         "exit 0 if the working tree is clean",
+	Long:          "Exits 0 if the tree IS clean, 1 if it is not.",
 	Run:           treeCleanRun,
 }
 
-// treeAheadCmd checks if the git tree is ahead of remote
+// treeAheadCmd - `clog BC git tree is ahead`
 var treeAheadCmd = &cobra.Command{
 	Use:           "ahead",
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	Short:         "Check if git tree is ahead of remote",
-	Long:          "Exits with 0 if tree is NOT ahead of remote, otherwise exits with 1",
+	Short:         "exit 0 if the working tree is ahead of origin",
+	Long:          "Exits 0 if the tree IS ahead of origin, 1 if it is not.",
 	Run:           treeAheadRun,
 }
 
-// treeBehindCmd checks if the git tree is behind remote
+// treeBehindCmd - `clog BC git tree is behind`
 var treeBehindCmd = &cobra.Command{
 	Use:           "behind",
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	Short:         "Check if git tree is behind remote",
-	Long:          "Exits with 0 if tree is NOT behind remote, otherwise exits with 1",
+	Short:         "exit 0 if the working tree is behind origin",
+	Long:          "Exits 0 if the tree IS behind origin, 1 if it is not.",
 	Run:           treeBehindRun,
 }
 
-// treeUnstagedCmd checks if the git tree has unstaged changes
+// treeUnstagedCmd - `clog BC git tree has unstaged`
 var treeUnstagedCmd = &cobra.Command{
 	Use:           "unstaged",
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	Short:         "Check if git tree has unstaged changes",
-	Long:          "Exits with 0 if tree has NO unstaged changes, otherwise exits with 1",
+	Short:         "exit 0 if the working tree has unstaged changes",
+	Long:          "Exits 0 if there ARE unstaged changes, 1 if there are none.",
 	Run:           treeUnstagedRun,
 }
 
 func init() {
-	// Add tree subcommand to the git command
 	gitCmd.AddCommand(treeCmd)
 
-	// Add subcommands to tree
-	treeCmd.AddCommand(treeCleanCmd)
-	treeCmd.AddCommand(treeAheadCmd)
-	treeCmd.AddCommand(treeBehindCmd)
-	treeCmd.AddCommand(treeUnstagedCmd)
+	treeCmd.AddCommand(treeIsCmd)
+	treeCmd.AddCommand(treeHasCmd)
+
+	treeIsCmd.AddCommand(treeCleanCmd)
+	treeIsCmd.AddCommand(treeAheadCmd)
+	treeIsCmd.AddCommand(treeBehindCmd)
+	treeHasCmd.AddCommand(treeUnstagedCmd)
 }
 
 // treeCleanRun checks if the git tree is clean using native git command.
@@ -146,13 +179,13 @@ func treeAheadRun(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// If not ahead (0 commits), exit 0
-	if commitsAhead == 0 {
-		slog.Debug("Git tree is not ahead of remote")
+	// The predicate is "is the tree ahead", so being ahead is the 0 case.
+	if commitsAhead > 0 {
+		slog.Debug("Git tree is ahead of remote", "commits", commitsAhead)
 		os.Exit(0)
 	}
 
-	slog.Debug("Git tree is ahead of remote", "commits", commitsAhead)
+	slog.Debug("Git tree is not ahead of remote")
 	os.Exit(1)
 }
 
@@ -190,13 +223,13 @@ func treeBehindRun(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// If not behind (0 commits), exit 0
-	if commitsBehind == 0 {
-		slog.Debug("Git tree is not behind remote")
+	// The predicate is "is the tree behind", so being behind is the 0 case.
+	if commitsBehind > 0 {
+		slog.Debug("Git tree is behind remote", "commits", commitsBehind)
 		os.Exit(0)
 	}
 
-	slog.Debug("Git tree is behind remote", "commits", commitsBehind)
+	slog.Debug("Git tree is not behind remote")
 	os.Exit(1)
 }
 
@@ -243,13 +276,13 @@ func treeUnstagedRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// If no unstaged changes, exit 0
-	if !hasUnstaged {
-		slog.Debug("Git tree has no unstaged changes")
+	// The predicate is "has unstaged changes", so having them is the 0 case.
+	if hasUnstaged {
+		slog.Debug("Git tree has unstaged changes")
 		os.Exit(0)
 	}
 
-	slog.Debug("Git tree has unstaged changes")
+	slog.Debug("Git tree has no unstaged changes")
 	os.Exit(1)
 }
 

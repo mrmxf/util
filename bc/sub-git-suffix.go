@@ -60,5 +60,4 @@ This is commonly used in build systems to create branch-specific artifacts.`,
 
 func init() {
 	// Add suffix subcommand to the git command
-	gitCmd.AddCommand(suffixCmd)
 }

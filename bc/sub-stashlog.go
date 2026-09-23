@@ -29,7 +29,7 @@ var slStep string
 
 // stashLogCmd logs a message like Log command and also adds it to the stash
 var stashLogCmd = &cobra.Command{
-	Use:           "stashLog",
+	Use:           "log",
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Short:         "log a message to the configured logger and add to stash",
@@ -136,5 +136,4 @@ func init() {
 	stashLogCmd.PersistentFlags().StringVarP(&slStep, "step", "3", "", "step name (optional, prepended to message)")
 
 	// Add stashLog subcommand to the main BC command
-	Command.AddCommand(stashLogCmd)
 }

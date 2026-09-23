@@ -27,5 +27,4 @@ go tool objdump -S <binary> | grep 'semver.SemVerJSON'`,
 
 func init() {
 	// Add linkerpath subcommand to the main BC command
-	Command.AddCommand(linkerPathCmd)
 }

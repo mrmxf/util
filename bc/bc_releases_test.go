@@ -235,7 +235,7 @@ func TestReleasesYamlPath(t *testing.T) {
 	Convey("Given the releases yaml command", t, func() {
 		Convey("When checking the yaml command structure", func() {
 			Convey("It should have proper command metadata", func() {
-				So(releaseYamlCmd.Use, ShouldEqual, "yaml")
+				So(releaseYamlCmd.Use, ShouldEqual, "path")
 				So(releaseYamlCmd.Short, ShouldNotBeEmpty)
 				So(releaseYamlCmd.Long, ShouldNotBeEmpty)
 			})

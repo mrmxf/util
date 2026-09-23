@@ -46,5 +46,4 @@ that branch. releases.yaml is not consulted: it is history.`,
 
 func init() {
 	prodTagCmd.Flags().StringVar(&prodBranch, "branch", "", "only tags reachable from this branch, e.g. origin/main")
-	tagCmd.AddCommand(prodTagCmd)
 }

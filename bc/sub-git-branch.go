@@ -51,5 +51,4 @@ This command shows the name of the currently checked out branch.`,
 
 func init() {
 	// Add branch subcommand to the git command
-	gitCmd.AddCommand(branchCmd)
 }

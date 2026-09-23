@@ -16,7 +16,7 @@ var isCmd = &cobra.Command{
 	Use:   "is",
 	Short: "Compare a release field with a string value",
 	Long: `Compare a field from the first release with a provided string value.
-Usage: clog bc is <field> <value>
+Usage: clog BC is <field> <value>
 
 Fields: version, date, flow, build, note
 
@@ -67,5 +67,4 @@ Exit codes:
 
 func init() {
 	// Add is subcommand to the main BC command
-	Command.AddCommand(isCmd)
 }

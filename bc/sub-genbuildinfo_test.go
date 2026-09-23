@@ -54,13 +54,13 @@ func runGen(args ...string) (string, error) {
 	}()
 	Command.SetOut(&out)
 	Command.SetErr(&bytes.Buffer{})
-	Command.SetArgs(append([]string{"genBuildinfo"}, args...))
+	Command.SetArgs(append([]string{"gen", "buildinfo"}, args...))
 	err := Command.Execute()
 	return strings.TrimSpace(out.String()), err
 }
 
 func TestGenBuildinfo(t *testing.T) {
-	Convey("clog BC genBuildinfo", t, func() {
+	Convey("clog BC gen buildinfo", t, func() {
 		inRepo(t, func(git func(...string)) {
 			Convey("on the release tag, prod is allowed and the version is the tag", func() {
 				out, err := runGen("prod", "--format", "version")

@@ -21,13 +21,12 @@ var hashOriginCmd = &cobra.Command{
 	SilenceUsage:  true,
 	Short:         "Print the hash of the origin HEAD",
 	Long:          "Prints the Git commit hash of the origin/HEAD reference from the remote repository",
-	Example:       "clog bc git hash origin",
+	Example:       "clog BC git hash origin",
 	Run:           hashOriginRun,
 }
 
 func init() {
 	// Add origin subcommand to the hash command
-	hashCmd.AddCommand(hashOriginCmd)
 }
 
 // hashOriginRun prints the hash of the origin HEAD.

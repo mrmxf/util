@@ -13,7 +13,7 @@ import (
 
 // releaseYamlCmd prints the path to the releases YAML file
 var releaseYamlCmd = &cobra.Command{
-	Use:           "yaml",
+	Use:           "path",
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Short:         "Print the releases YAML file path",
@@ -25,5 +25,4 @@ var releaseYamlCmd = &cobra.Command{
 
 func init() {
 	// Add yaml subcommand to the releases command
-	releasesCmd.AddCommand(releaseYamlCmd)
 }

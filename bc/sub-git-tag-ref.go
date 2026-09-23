@@ -46,5 +46,4 @@ clog BC genBuildinfo --format version.`,
 
 func init() {
 	// Add ref subcommand to the tag command
-	tagCmd.AddCommand(refCmd)
 }

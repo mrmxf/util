@@ -21,13 +21,12 @@ var hashHeadCmd = &cobra.Command{
 	SilenceUsage:  true,
 	Short:         "Print the hash of the local HEAD",
 	Long:          "Prints the Git commit hash of the current HEAD reference",
-	Example:       "clog bc git hash head",
+	Example:       "clog BC git hash head",
 	Run:           hashHeadRun,
 }
 
 func init() {
 	// Add head subcommand to the hash command
-	hashCmd.AddCommand(hashHeadCmd)
 }
 
 // hashHeadRun prints the hash of the local HEAD

@@ -3,6 +3,7 @@ module github.com/mrmxf/util/bc
 go 1.26
 
 require (
+	github.com/mrmxf/util/retire v0.1.0
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/mrmxf/util/buildinfo v0.12.0
 	github.com/mrmxf/util/check v0.11.1

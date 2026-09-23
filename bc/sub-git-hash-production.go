@@ -26,15 +26,19 @@ var productionHashCmd = &cobra.Command{
 
 func init() {
 	// Add prod subcommand to the hash command
-	hashCmd.AddCommand(productionHashCmd)
 }
 
 // productionHashRun gets the production tag and prints its hash from the remote
+//
+// A failure prints NOTHING to stdout. Before v1.0.0 each error path printed
+// the literal string "not found" there, so `h=$(clog BC git hash get prod)`
+// captured that text and any caller testing -z on it saw a value. The error
+// still goes to stderr via slog and the exit code is still 1; stdout is
+// reserved for the hash, or for nothing at all.
 func productionHashRun(cmd *cobra.Command, args []string) {
 	// Get the production tag using the helper function
 	prodTag, err := GitTagProduction()
 	if err != nil {
-		fmt.Println("not found")
 		slog.Error("Cannot get production tag", "err", err)
 		os.Exit(1)
 	}
@@ -42,7 +46,6 @@ func productionHashRun(cmd *cobra.Command, args []string) {
 	// Get the hash of the remote tag (timeout-bounded, R4)
 	output, err := gitNet("ls-remote", "origin", fmt.Sprintf("refs/tags/%s", prodTag))
 	if err != nil {
-		fmt.Println("not found")
 		slog.Error("Failed to get hash for tag", "tag", prodTag, "error", err)
 		os.Exit(1)
 	}
@@ -50,7 +53,6 @@ func productionHashRun(cmd *cobra.Command, args []string) {
 	// Parse the output (format: "<hash>\trefs/tags/<tag>")
 	outputStr := strings.TrimSpace(string(output))
 	if outputStr == "" {
-		fmt.Println("not found")
 		slog.Error("Tag not found in remote", "tag", prodTag)
 		os.Exit(1)
 	}
@@ -58,7 +60,6 @@ func productionHashRun(cmd *cobra.Command, args []string) {
 	// Extract the hash (first field before tab)
 	fields := strings.Fields(outputStr)
 	if len(fields) < 1 {
-		fmt.Println("not found")
 		slog.Error("Invalid output from git ls-remote", "output", outputStr)
 		os.Exit(1)
 	}

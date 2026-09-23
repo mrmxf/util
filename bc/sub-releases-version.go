@@ -31,5 +31,4 @@ var releaseVersionCmd = &cobra.Command{
 
 func init() {
 	// Add version subcommand to the releases command
-	releasesCmd.AddCommand(releaseVersionCmd)
 }

@@ -46,8 +46,7 @@ Formats:
   env         BUILD_MODE= BUILD_VERSION= BUILD_DOCKER_TAG= BUILD_HASH= BUILD_DATE=`
 
 var genBuildinfoCmd = &cobra.Command{
-	Use:           "genBuildinfo [dev|prod]",
-	Aliases:       []string{"genbuildinfo", "buildinfo"},
+	Use:           "buildinfo [dev|prod]",
 	Short:         "Generate build version info from git (not releases.yaml)",
 	Long:          genHelp,
 	Args:          cobra.MaximumNArgs(1),
@@ -109,5 +108,4 @@ func init() {
 	genBuildinfoCmd.Flags().StringVar(&genName, "name", "", "command name (default: the built module's name)")
 	genBuildinfoCmd.Flags().StringVar(&genTitle, "title", "", "printable name (default: the built module's name)")
 	genBuildinfoCmd.Flags().StringVar(&genFlavour, "flavour", "", "build edition shown as +flavour, e.g. plain | mrmxf")
-	Command.AddCommand(genBuildinfoCmd)
 }

@@ -27,15 +27,19 @@ var refHashCmd = &cobra.Command{
 
 func init() {
 	// Add ref subcommand to the hash command
-	hashCmd.AddCommand(refHashCmd)
 }
 
 // refHashRun gets the ref tag and prints its hash from the local repository
+//
+// A failure prints NOTHING to stdout. Before v1.0.0 each error path printed
+// the literal string "not found" there, so `h=$(clog BC git hash get prod)`
+// captured that text and any caller testing -z on it saw a value. The error
+// still goes to stderr via slog and the exit code is still 1; stdout is
+// reserved for the hash, or for nothing at all.
 func refHashRun(cmd *cobra.Command, args []string) {
 	// Get the ref tag using the helper function
 	refTag := GitTagRef()
 	if refTag == "" {
-		fmt.Println("not found")
 		slog.Error("No release data available")
 		os.Exit(1)
 	}
@@ -45,7 +49,6 @@ func refHashRun(cmd *cobra.Command, args []string) {
 	gitCmd := exec.Command("git", "rev-parse", refTag)
 	output, err := gitCmd.Output()
 	if err != nil {
-		fmt.Println("not found")
 		slog.Error("Failed to get hash for tag", "tag", refTag, "error", err)
 		os.Exit(1)
 	}
@@ -53,7 +56,6 @@ func refHashRun(cmd *cobra.Command, args []string) {
 	// Parse and print the hash
 	hash := strings.TrimSpace(string(output))
 	if hash == "" {
-		fmt.Println("not found")
 		slog.Error("Tag not found in local repository", "tag", refTag)
 		os.Exit(1)
 	}

@@ -20,7 +20,7 @@ var releasesCmd = &cobra.Command{
 - Access release information
 - Manage release metadata
 
-Use 'clog bc releases <command> --help' for more information about specific release commands.`,
+Use 'clog BC releases <command> --help' for more information about specific release commands.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help when no subcommands are provided
 		cmd.Help()

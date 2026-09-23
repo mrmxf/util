@@ -31,5 +31,4 @@ var releaseNoteCmd = &cobra.Command{
 
 func init() {
 	// Add note subcommand to the releases command
-	releasesCmd.AddCommand(releaseNoteCmd)
 }

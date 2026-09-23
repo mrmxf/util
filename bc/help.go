@@ -27,7 +27,7 @@ clog:
   releases-path: "path/to/releases.yaml"   # history, see above
   stash-path:     tmp/BcStash.yaml         # default place for remembering progress data
 
-Use 'clog bc <command> --help' for more information about specific commands.
+Use 'clog BC <command> --help' for more information about specific commands.
 `
 
 const stashLogLongHelp = `Log a message using slog and simultaneously record it in the stash file.

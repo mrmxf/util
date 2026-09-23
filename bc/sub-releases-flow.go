@@ -31,5 +31,4 @@ var releaseFlowCmd = &cobra.Command{
 
 func init() {
 	// Add flow subcommand to the releases command
-	releasesCmd.AddCommand(releaseFlowCmd)
 }

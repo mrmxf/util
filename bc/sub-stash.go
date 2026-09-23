@@ -5,6 +5,7 @@
 package bc
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 
@@ -51,7 +52,7 @@ var stashGetErrorCmd = &cobra.Command{
 	SilenceUsage:  true,
 	Short:         "get the most recent error from the stash",
 	Long:          "Prints the error with the highest timestamp, optionally filtered by flow",
-	Example:       "clog bc stash get error --flow build",
+	Example:       "clog BC stash get error --flow build",
 	Run:           stashGetErrorFunc,
 }
 
@@ -95,19 +96,23 @@ func stashHasRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Exit logic based on conditions:
-	// 1. If Level > LvlWarn and no flow specified - exit with 1
-	if hasError && slFlow == "" {
+	// `has error` is a predicate, so it exits 0 when the answer is yes.
+	//
+	// Before v1.0.0 this was inverted - it exited 1 when the stash DID hold an
+	// error - which made `if clog BC stash has error; then` run the recovery
+	// branch exactly when there was nothing to recover from. The old spelling
+	// is retired rather than quietly flipped, because an exit code that
+	// changes meaning under an unchanged name cannot announce itself.
+	if slFlow != "" {
+		if errorInSpecifiedFlow {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
-
-	// 2. If Level > LvlWarn and a flowName was specified with -1/--flow flag - exit with 1 if error found in that flow
-	if slFlow != "" && errorInSpecifiedFlow {
-		os.Exit(1)
+	if hasError {
+		os.Exit(0)
 	}
-
-	// Otherwise exit 0
-	os.Exit(0)
+	os.Exit(1)
 }
 
 // stashGetErrorFunc gets and prints the most recent error from the stash
@@ -142,13 +147,21 @@ func stashGetErrorFunc(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Print the most recent error if found
-	if mostRecentError != nil {
-		slog.Info("Stashed Error",
-			"flow", mostRecentFlow,
-			"phase", mostRecentPhase,
-			"step", mostRecentError.Step,
-			"message", mostRecentError.Message,
-			"timestamp", mostRecentError.Timestamp.Format("2006-01-02 15:04:05"))
+	// A `get` returns one value on STDOUT, so `x=$(clog BC stash get error)`
+	// captures it. Before v1.0.0 this printed through slog, which writes to
+	// stderr, so the capture was always empty and the caller could not tell an
+	// absent error from a present one. The structured detail is still logged,
+	// because it is useful to a human reading the job output - it is just not
+	// the value.
+	if mostRecentError == nil {
+		// Nothing found prints nothing: the `get` contract is that an unset
+		// value is an empty capture, never a sentinel string.
+		return
 	}
+	slog.Debug("Stashed Error",
+		"flow", mostRecentFlow,
+		"phase", mostRecentPhase,
+		"step", mostRecentError.Step,
+		"timestamp", mostRecentError.Timestamp.Format("2006-01-02 15:04:05"))
+	fmt.Fprintln(cmd.OutOrStdout(), mostRecentError.Message)
 }
