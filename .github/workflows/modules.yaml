@@ -1,0 +1,78 @@
+---
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+#  modules — every util module builds, vets and tests ON ITS OWN.
+#
+#  util is ~20 Go modules, each tagged separately (bc/v0.15.0, ci/v0.21.0, ...).
+#  On the author's machine ~/gr/clogs/go.work puts all of them in one
+#  workspace, so a module can build for months against its siblings' working
+#  trees while its own go.mod pins something that does not compile. Not
+#  hypothetical: bc and ci had no go.sum entry for util/retire, and bc used a
+#  buildinfo field its pinned buildinfo predates. Consumers built only because
+#  their own go.mod lifted the version. This is the guard that was missing.
+#
+#  The module list is discovered, not written down, so a new module is covered
+#  the day it gets a go.mod.
+#
+#  Not linted here: the modules carry pre-existing errcheck findings, and a
+#  gate that is red on day one gets ignored. Lint is a separate decision.
+#
+#  This file is new, and deliberately sits beside the frozen legacy workflows
+#  (build-golang, build-hugo, deploy-s3) rather than replacing them: those stay
+#  until clog-mrmxf no longer calls them (mrmxf/clog plan, Phase 12).
+
+name: modules
+run-name: modules(${{ github.event_name }}) 🥷${{ github.actor }}
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      modules: ${{ steps.find.outputs.modules }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: find every go.mod
+        id: find
+        run: |
+          # A committed go.work would mask the pins in CI too.
+          if [ -e go.work ]; then echo "::error::go.work is committed - it masks every module's pins"; exit 1; fi
+          mods="$(find . -name go.mod -not -path '*/node_modules/*' -printf '%h\n' \
+                  | sed 's#^\./##' | sort | jq -Rsc 'split("\n") | map(select(. != ""))')"
+          echo "modules=$mods" | tee -a "$GITHUB_OUTPUT"
+
+  module:
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false      # one broken module must not hide another
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.modules) }}
+    name: ${{ matrix.module }}
+    env:
+      GOWORK: "off"         # the module's own go.mod pins, never its siblings' source
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          # shell and embedfs have no dependencies and so no go.sum, which a
+          # cache keyed on go.sum cannot handle. Downloads are small; no cache.
+          cache: false
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...
