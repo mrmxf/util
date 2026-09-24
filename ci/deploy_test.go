@@ -254,6 +254,10 @@ func TestDeployGitHubPagesAgainstRealGit(t *testing.T) {
 	ReleaseVersion = func() string { return "v9.9.9" }
 	defer func() { ReleaseVersion = prevVer }()
 
+	prevPages := pagesSettings
+	pagesSettings = func(string) (string, error) { return `{"build_type":"legacy","source":{"branch":"gh-pages","path":"/"}}`, nil }
+	defer func() { pagesSettings = prevPages }()
+
 	env := laptop(nil, fakeGit{slug: "acme/site", url: origin})
 	cfg := pagesConfig(map[string]any{"dir": dir, "branch": "gh-pages"})
 	if err := Deploy(env, cfg, ModeProd, "", false, &bytes.Buffer{}); err != nil {
@@ -265,7 +269,7 @@ func TestDeployGitHubPagesAgainstRealGit(t *testing.T) {
 		t.Fatalf("nothing was pushed: %v", err)
 	}
 	got := strings.Fields(string(files))
-	for _, want := range []string{"index.html", ".nojekyll"} {
+	for _, want := range []string{"index.html", ".nojekyll", releaseMarker} {
 		if !slices.Contains(got, want) {
 			t.Errorf("gh-pages should contain %s, has %v", want, got)
 		}

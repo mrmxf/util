@@ -39,6 +39,9 @@ func probeWebsite(d Deployment) []ProbeFinding {
 	default:
 		out = append(out, pass(d, "site responds", fmt.Sprintf("GET %s returned 200", base)))
 	}
+	if status == http.StatusOK {
+		out = append(out, probeServedBuild(d, base))
+	}
 
 	for _, p := range exposedPaths {
 		u := base + p

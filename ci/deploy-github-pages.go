@@ -4,6 +4,7 @@
 package ci
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -26,6 +27,11 @@ import (
 // account-level change and this deployer will not do it silently: a repo with
 // Pages unconfigured gets a published branch and a clear message, not a
 // surprise change to a live site's serving source.
+//
+// Pages pointed somewhere ELSE is refused before anything is pushed. A push to a
+// branch nothing serves succeeds, and the site does not change - pihuw shipped
+// five releases that way. Reading the setting needs the token to have
+// `pages: read`; without it the deploy warns and carries on.
 const (
 	pagesDefaultBranch = "gh-pages"
 	pagesBotName       = "clog"
@@ -78,6 +84,14 @@ func deployGitHubPages(d Deployment) error {
 		return nil
 	}
 
+	enabled, err := checkPagesSource(d, repo, branch)
+	if err != nil {
+		return err
+	}
+
+	if err := writeReleaseMarker(dir, version); err != nil {
+		return err
+	}
 	if cname != "" {
 		if err := os.WriteFile(filepath.Join(dir, "CNAME"), []byte(cname+"\n"), 0o644); err != nil {
 			return fmt.Errorf("cannot write CNAME: %w", err)
@@ -117,7 +131,58 @@ func deployGitHubPages(d Deployment) error {
 		}
 	}
 	fmt.Fprintf(d.Out, "published %s/ to %s on %s (%s)\n", dir, repo, branch, version)
+	if !enabled {
+		fmt.Fprintf(d.Out, "Pages is not enabled for %s, or this token cannot read its settings: "+
+			"the branch is published but nothing serves it until Settings → Pages → "+
+			"Deploy from a branch → %s, / (root)\n", repo, branch)
+	}
 	return nil
+}
+
+// pagesInfo is the part of GET /repos/{repo}/pages the deployer cares about.
+type pagesInfo struct {
+	BuildType string `json:"build_type"` // "legacy" serves a branch; "workflow" does not
+	Source    struct {
+		Branch string `json:"branch"`
+		Path   string `json:"path"`
+	} `json:"source"`
+}
+
+// pagesSettings reads a repo's Pages configuration. A seam of its own, so a
+// test that runs real git does not also reach the GitHub API.
+var pagesSettings = func(repo string) (string, error) {
+	return execCommand(".", "gh", "api", "repos/"+repo+"/pages")
+}
+
+// checkPagesSource refuses a publish that could not change the live site. It
+// reports whether Pages is known to be enabled; a lookup that fails for any
+// other reason is a warning, not an error, since the push may still be right.
+func checkPagesSource(d Deployment, repo, branch string) (enabled bool, err error) {
+	out, err := pagesSettings(repo)
+	if err != nil {
+		if strings.Contains(out, "HTTP 404") {
+			return false, nil
+		}
+		slog.Warn("github-pages: cannot read which branch Pages serves; publishing anyway",
+			"repo", repo, "err", err, "out", out)
+		return true, nil
+	}
+	var p pagesInfo
+	if err := json.Unmarshal([]byte(out), &p); err != nil {
+		slog.Warn("github-pages: cannot parse the Pages settings; publishing anyway", "repo", repo, "err", err)
+		return true, nil
+	}
+	fix := fmt.Sprintf("Settings → Pages → Source: Deploy from a branch → %s, / (root). "+
+		"clog will not change a live site's serving source for you", branch)
+	if p.BuildType == "workflow" {
+		return true, fmt.Errorf("the Pages site for %s is built by a GitHub Actions workflow, not served from %s: "+
+			"publishing would change nothing live. %s", repo, branch, fix)
+	}
+	if p.Source.Branch != branch || (p.Source.Path != "" && p.Source.Path != "/") {
+		return true, fmt.Errorf("the Pages site for %s serves %s:%s, not %s:/ - publishing would change nothing live. %s",
+			repo, p.Source.Branch, p.Source.Path, branch, fix)
+	}
+	return true, nil
 }
 
 // checkPublishDir fails early and specifically: an empty directory here means

@@ -77,6 +77,9 @@ func deployCloudflarePages(d Deployment) error {
 			dir, project, prodBranch, version)
 		return nil
 	}
+	if err := writeReleaseMarker(abs, version); err != nil {
+		return err
+	}
 
 	args := []string{
 		"wrangler", "pages", "deploy", abs,
