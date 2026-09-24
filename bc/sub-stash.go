@@ -22,6 +22,8 @@ var stashCmd = &cobra.Command{
 	Short:         "check or extract information from the stash",
 	Long:          stashLongHelp,
 	Example:       stashExample,
+	Args:          cobra.NoArgs,
+	Run:           helpRun,
 }
 
 // stashCmd check the stash log for conditions
@@ -32,7 +34,11 @@ var stashHasCmd = &cobra.Command{
 	Short:         "check or extract information from the stash",
 	Long:          stashLongHelp,
 	Example:       stashExample,
-	Run:           stashHasRun,
+	// `error` is the only thing a stash can be asked to have. Without this a
+	// typo (`has errors`) silently answered the error question instead.
+	Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	ValidArgs: []string{"error"},
+	Run:       stashHasRun,
 }
 
 // stashCmd check the stash log for conditions
@@ -43,6 +49,8 @@ var stashGetCmd = &cobra.Command{
 	Short:         "get information from the stash",
 	Long:          stashLongHelp,
 	Example:       stashExample,
+	Args:          cobra.NoArgs,
+	Run:           helpRun,
 }
 
 // stashGetErrorCmd gets the most recent error from the stash

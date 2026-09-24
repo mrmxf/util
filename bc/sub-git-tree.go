@@ -39,6 +39,7 @@ when the tree was NOT in that state - so the line above did the opposite of
 what it said. The old spellings are retired rather than fixed in place,
 because a predicate that changes meaning while keeping its name is the one
 rename that cannot fail loudly.`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help() //nolint:errcheck // help output is best-effort
 	},
@@ -50,6 +51,7 @@ var treeIsCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Short:         "is the tree clean, ahead or behind? (exit code only)",
+	Args:          cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help() //nolint:errcheck // help output is best-effort
 	},
@@ -61,6 +63,7 @@ var treeHasCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Short:         "does the tree have unstaged changes? (exit code only)",
+	Args:          cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help() //nolint:errcheck // help output is best-effort
 	},

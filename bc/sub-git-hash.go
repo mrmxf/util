@@ -22,6 +22,7 @@ var hashCmd = &cobra.Command{
 - Short hash operations
 
 Use 'clog BC git hash <command> --help' for more information about specific hash commands.`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help when no subcommands are provided
 		cmd.Help()

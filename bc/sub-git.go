@@ -22,6 +22,7 @@ var gitCmd = &cobra.Command{
 - Commit and history management
 
 Use 'clog BC git <command> --help' for more information about specific Git commands.`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help when no subcommands are provided
 		cmd.Help()

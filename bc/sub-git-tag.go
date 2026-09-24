@@ -22,6 +22,7 @@ var tagCmd = &cobra.Command{
 - Tag validation and verification
 
 Use 'clog BC git tag <command> --help' for more information about specific tag commands.`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help when no subcommands are provided
 		cmd.Help()

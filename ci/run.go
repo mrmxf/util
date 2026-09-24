@@ -28,7 +28,7 @@ var runCmd = &cobra.Command{
 	Use:   "run [--dry-run] -- <command> [args...]",
 	Short: "run a command with this repo's Infisical secrets in its environment",
 	Long:  runHelp,
-	// A wrong or missing secret must say so in the job log (see envCmd).
+	// A wrong or missing secret must say so in the job log.
 	SilenceUsage: true,
 	Args:         cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

@@ -21,6 +21,7 @@ var checkoutCmd = &cobra.Command{
 - Validation and verification
 
 Use 'clog BC git checkout <command> --help' for more information about specific checkout commands.`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help when no subcommands are provided
 		cmd.Help()

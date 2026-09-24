@@ -79,24 +79,10 @@ var modeCmd = &cobra.Command{
 	Use:   "mode [dev|prod] [get <key>]",
 	Short: "print this run's mode (dev|prod), validate a forced one, or read a ci.modes setting",
 	Long:  modeHelp,
-	// a wrong mode builds the wrong thing - say so out loud (see envCmd history)
+	// a wrong mode builds the wrong thing - say so out loud
 	SilenceUsage: true,
 	Args:         cobra.MaximumNArgs(2),
 	RunE:         runMode,
-}
-
-// envCmd is the pre-D-I.12 name for `ci mode`, kept for one release.
-var envCmd = &cobra.Command{
-	Use:          "env [get <key>]",
-	Short:        "deprecated: use `clog CI mode`",
-	Long:         modeHelp,
-	Hidden:       true,
-	SilenceUsage: true,
-	Args:         cobra.MaximumNArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Warn("`clog CI mode show` is deprecated: use `clog CI mode` (staging was removed, D-I.12)")
-		return runMode(cmd, args)
-	},
 }
 
 func runMode(cmd *cobra.Command, args []string) error {

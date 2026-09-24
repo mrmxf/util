@@ -14,6 +14,7 @@ var Command = &cobra.Command{
 	Use:   "BC",
 	Short: "BC <sub-command> - clog's Build Control and version management",
 	Long:  longHelp,
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help when no subcommands are provided
 		cmd.Help()

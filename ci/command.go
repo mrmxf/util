@@ -20,6 +20,7 @@ var Command = &cobra.Command{
 	Use:   "CI",
 	Short: "CI <sub-command> - normalize CI/CD event context for build steps",
 	Long:  longHelp,
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		if configHelpFlag {
 			fmt.Fprintln(cmd.OutOrStdout(), configHelp)
@@ -46,6 +47,7 @@ var showCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Run:           ciHelpRun,
+	Args:          cobra.NoArgs,
 }
 
 // listCmd - `clog CI list`: reserved for repo-wide lists. The per-namespace
@@ -57,6 +59,7 @@ var listCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Run:           ciHelpRun,
+	Args:          cobra.NoArgs,
 }
 
 func ciHelpRun(cmd *cobra.Command, args []string) {
@@ -78,7 +81,6 @@ func init() {
 	Command.AddCommand(requireCmd)
 	modeCmd.Flags().BoolVar(&modeGetRequired, "required", false, "exit 1 when the key is missing or empty")
 	Command.AddCommand(modeCmd)
-	Command.AddCommand(envCmd) // deprecated alias of `ci mode` (mode.go)
 	targetsCmd.Flags().StringVar(&targetsKindFlag, "kind", "", "only targets of this kind (container-registry|bucket|cloudflare-pages|github-pages|gitlab-pages|github-release|gitlab-release)")
 	// On targetGetCmd, not targetCmd: `get` is a real subcommand here (unlike
 	// `mode get`, where get is an argument), so a flag on the parent is one the

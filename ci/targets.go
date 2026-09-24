@@ -206,6 +206,7 @@ var targetCmd = &cobra.Command{
 	Long:         targetsHelp,
 	SilenceUsage: true,
 	Run:          ciHelpRun,
+	Args:         cobra.NoArgs,
 }
 
 // targetGetCmd - `clog CI target get <key>`: one value from $CLOG_TARGET.

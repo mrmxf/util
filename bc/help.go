@@ -37,15 +37,15 @@ the special word STATUS allows an overall summary status to be logged for a flow
 
 const stashLogExample = `
 In a hugo build you might have phases check, prep, hugo, post and deploy. These might be logged:
-	clog BC stashLog -1 check     -2 tooling   -3 "tooling"  -I "running hugo tooling check"
-	clog BC stashLog -1 check     -2 tooling   -3 "tooling"  -S "tooling check ok"
-	clog BC stashLog -1 check     -2 tagging   -3 "tagging"  -I "checking git tags"
-	clog BC stashLog -1 check     -2 tagging   -3 "tagging"  -S "git tags ok"
-	clog BC stashLog -1 build     -2 push      -3 "docker push" -S "pushed image successfully"
-	clog BC stashLog -1 build     -2 unit      -3 "test pkg"    -E "tests failed"
+	clog BC stash log -1 check     -2 tooling   -3 "tooling"  -I "running hugo tooling check"
+	clog BC stash log -1 check     -2 tooling   -3 "tooling"  -S "tooling check ok"
+	clog BC stash log -1 check     -2 tagging   -3 "tagging"  -I "checking git tags"
+	clog BC stash log -1 check     -2 tagging   -3 "tagging"  -S "git tags ok"
+	clog BC stash log -1 build     -2 push      -3 "docker push" -S "pushed image successfully"
+	clog BC stash log -1 build     -2 unit      -3 "test pkg"    -E "tests failed"
 Then run 
-  clog BC stash has error            # returns non-0 if there are any errors in the stash
-	clog BC stash --build  has error   # returns non-0 if there are any errors in build
+  clog BC stash has error            # exits 0 if the stash holds any error
+	clog BC stash has error --flow build   # exits 0 if the build flow holds an error
 	`
 const stashLongHelp = `get status or extract information from the stash.
 
@@ -53,7 +53,7 @@ The stash entry is organized by flow, phase, and step for tracking a build/deplo
 the special word STATUS allows an overall summary status to be logged for a flow/phase/step`
 
 const stashExample = `
-  clog BC stash hasError            # returns non-0 if there are any errors in the stash
-	clog BC stash --build has error   # returns non-0 if there are any errors in build
-	clog BC stash --build get error   # prints the error string for the build phase to stdout
+  clog BC stash has error                # exits 0 if the stash holds any error
+	clog BC stash has error --flow build   # exits 0 if the build flow holds an error
+	clog BC stash get error --flow build   # prints the newest build error to stdout
 	`

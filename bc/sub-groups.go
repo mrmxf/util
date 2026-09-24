@@ -29,6 +29,7 @@ var (
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Run:           helpRun,
+		Args:          cobra.NoArgs,
 	}
 
 	// tagGetCmd - `clog BC git tag get <head|origin|prod|ref>`
@@ -38,6 +39,7 @@ var (
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Run:           helpRun,
+		Args:          cobra.NoArgs,
 	}
 
 	// hashGetCmd - `clog BC git hash get <head|origin|prod|ref>`
@@ -47,6 +49,7 @@ var (
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Run:           helpRun,
+		Args:          cobra.NoArgs,
 	}
 
 	// releasesGetCmd - `clog BC releases get <version|date|flow|note|build|path>`
@@ -56,6 +59,7 @@ var (
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Run:           helpRun,
+		Args:          cobra.NoArgs,
 	}
 
 	// bcGetCmd - `clog BC get <linkerpath>`
@@ -65,6 +69,7 @@ var (
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Run:           helpRun,
+		Args:          cobra.NoArgs,
 	}
 
 	// bcGenCmd - `clog BC gen <buildinfo>`
@@ -74,6 +79,7 @@ var (
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Run:           helpRun,
+		Args:          cobra.NoArgs,
 	}
 )
 
@@ -122,6 +128,7 @@ var semverGroupCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Run:           helpRun,
+	Args:          cobra.NoArgs,
 }
 
 func init() {

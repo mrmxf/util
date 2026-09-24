@@ -21,3 +21,13 @@ func TestRetiredNamespacesFailLoudly(t *testing.T) {
 		}
 	}
 }
+
+// `CI env` was retired in v1.0.0 but a live deprecated alias of the same name
+// was registered first, so the retirement never ran and `clog CI env` kept
+// working - with a warning that named the wrong command.
+func TestCIEnvIsRetired(t *testing.T) {
+	_, err := runCI(t, Config{}, "env")
+	if err == nil || !strings.Contains(err.Error(), "use: clog CI mode show") {
+		t.Fatalf("clog CI env: want a retirement naming `clog CI mode show`, got %v", err)
+	}
+}
