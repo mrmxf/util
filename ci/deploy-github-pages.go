@@ -6,10 +6,12 @@ package ci
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // GitHub Pages target data, per mode:
@@ -202,7 +204,44 @@ func checkPublishDir(dir string) error {
 	if len(entries) == 0 {
 		return fmt.Errorf("refusing to publish %s: it is empty, which would blank the site", dir)
 	}
-	return nil
+	return checkNoMounts(dir)
+}
+
+// checkNoMounts refuses a publish directory that has another filesystem mounted
+// inside it - a bucket a watch mounted for previewing, say. Publishing would
+// upload the whole bucket as the site. It compares each directory's device with
+// the root's and stops at the first difference WITHOUT descending into it, so a
+// mounted bucket is never listed.
+func checkNoMounts(dir string) error {
+	root, err := deviceOf(dir)
+	if err != nil {
+		return err
+	}
+	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("cannot read %s: %w", path, err)
+		}
+		if !d.IsDir() || path == dir {
+			return nil
+		}
+		dev, err := deviceOf(path)
+		if err != nil {
+			return err
+		}
+		if dev != root {
+			return fmt.Errorf("refusing to publish %s: %s is a mount point (another filesystem) - a bucket mounted by `clog watch`? Run `clog unwatch`", dir, path)
+		}
+		return nil
+	})
+}
+
+// deviceOf is the device a path lives on. A package var so tests can fake a mount.
+var deviceOf = func(path string) (uint64, error) {
+	var st syscall.Stat_t
+	if err := syscall.Stat(path, &st); err != nil {
+		return 0, fmt.Errorf("cannot stat %s: %w", path, err)
+	}
+	return uint64(st.Dev), nil //nolint:unconvert // int32 on darwin
 }
 
 // pagesPushURL returns the URL to push to and a safe form for logging.

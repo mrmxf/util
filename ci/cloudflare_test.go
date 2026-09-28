@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -148,5 +150,47 @@ func TestPagesDryRunCreatesNothing(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "would create Pages project site-staging") {
 		t.Errorf("dry run should say it would create: %q", out.String())
+	}
+}
+
+// A bucket mounted inside the publish dir (clog watch does that for previewing)
+// must never be uploaded as the site: the deploy stops before wrangler runs.
+func TestPagesDeployRefusesAMountInsideThePublishDir(t *testing.T) {
+	cf := &fakeCloudflare{exists: true}
+	cf.serve(t)
+	cfg, env := pagesTarget(t)
+	dir := cfg.Targets["pages"].Dev["dir"].(string)
+	mount := filepath.Join(dir, "get")
+	if err := os.Mkdir(mount, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prev := deviceOf
+	deviceOf = func(p string) (uint64, error) {
+		if p == mount {
+			return 2, nil // another filesystem
+		}
+		return 1, nil
+	}
+	defer func() { deviceOf = prev }()
+	calls, restore := recordExec(t, "")
+	defer restore()
+
+	err := Deploy(env, cfg, ModeDev, "", false, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "mount point") || !strings.Contains(err.Error(), "clog unwatch") {
+		t.Fatalf("err = %v, want a refusal naming the mount and clog unwatch", err)
+	}
+	if strings.Contains(strings.Join(*calls, "\n"), "wrangler") {
+		t.Errorf("wrangler ran: %v", *calls)
+	}
+}
+
+// And the real check, on a real directory: nothing mounted, nothing refused.
+func TestCheckNoMountsOnAPlainTree(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "a", "b"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkNoMounts(dir); err != nil {
+		t.Errorf("plain tree refused: %v", err)
 	}
 }

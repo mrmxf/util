@@ -283,7 +283,12 @@ check:
             trivy fs $ARGS "$scan_source_ref" || ERR=1
           fi
           if [ "$scan_source_secrets" = "true" ]; then
-            trivy fs --scanners secret --format sarif \
+            # skip-dirs as for the vuln scan: without it the secret scan walks
+            # node_modules, _clog_build (a site's publish dir, and any bucket a
+            # watch has mounted there) and every other generated tree.
+            SARGS=""
+            [ -n "$scan_source_skip_dirs" ] && SARGS="--skip-dirs $scan_source_skip_dirs"
+            trivy fs --scanners secret $SARGS --format sarif \
               --output _clog_build/scan/source-secret.sarif "$scan_source_ref" || ERR=1
           fi
           exit $ERR
