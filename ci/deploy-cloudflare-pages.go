@@ -30,9 +30,10 @@ import (
 // a production deployment of that project. The real branch travels in the
 // commit message, so the Cloudflare dashboard still says where it came from.
 //
-// The project must already exist. Creating one is an account-level change with
-// a DNS side effect, and a deployer that does that silently is how a live
-// domain moves without anyone deciding to move it.
+// A missing project is created (EnsurePagesProject), with its production
+// branch. That is safe by default because a new project serves only its own
+// *.pages.dev host: the deployer never attaches a domain or writes DNS, so it
+// cannot move a live site. Moving a domain stays a deliberate act.
 func deployCloudflarePages(d Deployment) error {
 	dir, err := d.Get("dir", true)
 	if err != nil {
@@ -63,6 +64,10 @@ func deployCloudflarePages(d Deployment) error {
 		if strings.TrimSpace(d.Env.Getenv(k)) == "" {
 			return fmt.Errorf("$%s is not set: run this under `clog CI run` so the secret store supplies it", k)
 		}
+	}
+	if _, err := EnsurePagesProject(d.Env.Getenv("CLOUDFLARE_API_TOKEN"), d.Env.Getenv("CLOUDFLARE_ACCOUNT_ID"),
+		project, prodBranch, d.DryRun, d.Out); err != nil {
+		return err
 	}
 
 	version := ReleaseVersion()
