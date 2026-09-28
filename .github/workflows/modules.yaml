@@ -18,9 +18,9 @@
 #  Not linted here: the modules carry pre-existing errcheck findings, and a
 #  gate that is red on day one gets ignored. Lint is a separate decision.
 #
-#  This file is new, and deliberately sits beside the frozen legacy workflows
-#  (build-golang, build-hugo, deploy-s3) rather than replacing them: those stay
-#  until clog-mrmxf no longer calls them (mrmxf/clog plan, Phase 12).
+#  This file sits beside the legacy workflows (build-golang, deploy-s3) rather
+#  than replacing them: those stay until clog-mrmxf no longer calls them
+#  (mrmxf/clog plan, Phase 12). build-hugo went with ko (2026-09-28).
 
 name: modules
 run-name: modules(${{ github.event_name }}) 🥷${{ github.actor }}

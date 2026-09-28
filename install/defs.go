@@ -47,7 +47,7 @@ type VersionSpec struct {
 // SLSASpec describes how to verify SLSA provenance for a downloaded artifact.
 type SLSASpec struct {
 	URLTemplate string `yaml:"url-template"` // provenance download URL; supports {version}, {os}, {arch}
-	SourceURI   string `yaml:"source-uri"`   // expected source URI passed to slsa-verifier (e.g. github.com/ko-build/ko)
+	SourceURI   string `yaml:"source-uri"`   // expected source URI passed to slsa-verifier (e.g. github.com/aquasecurity/trivy)
 }
 
 // DownloadSpec describes how to fetch the tool artifact.

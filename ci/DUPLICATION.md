@@ -69,6 +69,6 @@ that trap — another reason to keep the parse in one Go place.)
 
 - `ci.ReleaseVersion` delegates to `buildinfo.ReadGitState`, so version derivation
   is **not** duplicated between `ci` and `buildinfo`. Good precedent for item 2.
-- `bc-hugo` and `bc-ko` duplication is already recorded in
-  `clog-mrmxf/todo-hugo-sites-config-only.md` item 2, which retires both. Nothing
-  to add, but note it makes item 3 cheaper: fewer snippets survive to delegate.
+- `bc-hugo` duplication is recorded in `clog-mrmxf/todo-hugo-sites-config-only.md`
+  item 2. `bc-ko` is gone (ko retired 2026-09-28), which makes item 3 cheaper:
+  fewer snippets survive to delegate.

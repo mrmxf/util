@@ -6,6 +6,7 @@ package ci
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
@@ -54,6 +55,79 @@ type Stack struct {
 	// builds, the platforms it builds for. Free-form on purpose: a new phase
 	// gains settings without a Go change. Read with `clog CI stack get with.<key>`.
 	With map[string]any `json:"with"`
+	// Enabled switches a stack off without deleting it: `enabled: false`, or
+	// `enabled: $SOME_VAR` to let the environment decide. A disabled stack is
+	// not built, linted, scanned or deployed - its targets drop out too. See
+	// Stack.IsEnabled.
+	Enabled Toggle `json:"enabled"`
+}
+
+// Toggle is a boolean that may also be written as a string naming an
+// environment variable: `enabled: false`, `enabled: $BUILD_CONTAINER_IMAGE`, or
+// with a committed default, `enabled: ${BUILD_CONTAINER_IMAGE:-false}`.
+// Unset, and a variable that is unset or empty, both mean true: switching
+// something off is always a deliberate act.
+type Toggle struct {
+	raw string
+	set bool
+}
+
+// UnmarshalJSON accepts a YAML bool or a string.
+func (t *Toggle) UnmarshalJSON(b []byte) error {
+	var v bool
+	if err := json.Unmarshal(b, &v); err == nil {
+		*t = Toggle{raw: fmt.Sprint(v), set: true}
+		return nil
+	}
+	var str string
+	if err := json.Unmarshal(b, &str); err != nil {
+		return fmt.Errorf("must be true, false or $ENV_VAR, not %s", string(b))
+	}
+	*t = Toggle{raw: str, set: true}
+	return nil
+}
+
+// getenv is os.Getenv, replaceable in tests.
+var getenv = os.Getenv
+
+// expandDefault resolves $VAR and ${VAR}, and ${VAR:-default} as a shell does:
+// the default when VAR is unset or empty. It lets a repo commit a default
+// that CI obeys - `enabled: ${BUILD_IMAGE:-false}` - while a laptop can still
+// flip it for one run.
+func expandDefault(name string) string {
+	if key, def, ok := strings.Cut(name, ":-"); ok {
+		if v := getenv(key); v != "" {
+			return v
+		}
+		return def
+	}
+	return getenv(name)
+}
+
+// Value resolves the toggle: environment references expanded, then parsed.
+// The second result says where the answer came from, for log lines.
+func (t Toggle) Value() (on bool, why string, err error) {
+	if !t.set {
+		return true, "", nil
+	}
+	v := strings.ToLower(strings.TrimSpace(os.Expand(t.raw, expandDefault)))
+	why = t.raw
+	if v != t.raw {
+		why = t.raw + "=" + v
+	}
+	switch v {
+	case "", "true", "yes", "on", "1":
+		return true, why, nil
+	case "false", "no", "off", "0":
+		return false, why, nil
+	}
+	return false, why, fmt.Errorf("%q is not true or false", why)
+}
+
+// IsEnabled reports whether the stack takes part in a run.
+func (s Stack) IsEnabled() bool {
+	on, _, err := s.Enabled.Value()
+	return on && err == nil
 }
 
 // stackDefaults is what a type supplies when the stack leaves a field empty.
@@ -68,11 +142,13 @@ type stackDefaults struct {
 // line. `scan` and `lint` are ordinary check phases: that is the whole point,
 // because it makes them local commands rather than CI-only workflow steps.
 var stackTypeDefaults = map[string]stackDefaults{
+	// A hugo site is its files. A site that also ships a container declares
+	// a second stack of type container - see ci/SCANNING.md.
 	StackHugo: {
-		Tools: []string{"hugo", "ko", "trivy"},
+		Tools: []string{"hugo", "trivy"},
 		Watch: "hugo server -D",
 		Chk:   []string{"pre-build", "lint", "scan"},
-		Make:  []string{"hugo", "ko"},
+		Make:  []string{"hugo"},
 	},
 	StackGolang: {
 		Tools: []string{"golang", "trivy", "golangci-lint", "staticcheck"},
@@ -86,9 +162,9 @@ var stackTypeDefaults = map[string]stackDefaults{
 		Chk:   []string{"pre-build", "lint", "test", "scan"},
 		Make:  []string{"golang"},
 	},
-	// podman, not ko: rootless, daemonless, and the Containerfile says what is
-	// in the image rather than a builder's defaults. bc-podman never pushes -
-	// the container-registry deployer does. A repo still on ko names it in make.
+	// Rootless, daemonless podman: the Containerfile says what is in the image
+	// rather than a builder's defaults. bc-podman never pushes - the
+	// container-registry deployer does.
 	StackContainer: {
 		Tools: []string{"golang", "podman", "trivy", "golangci-lint", "staticcheck"},
 		Watch: "podman compose watch",
@@ -183,6 +259,9 @@ func (s Stack) validate(i int) error {
 				StackKey, i, name, name)
 		}
 	}
+	if _, _, err := s.Enabled.Value(); err != nil {
+		return fmt.Errorf("%s.%s.enabled: %w", StackKey, name, err)
+	}
 	if strings.TrimSpace(s.Type) == "" {
 		return fmt.Errorf("%s.%s has no type (one of %s)", StackKey, name, strings.Join(knownStackTypes, ", "))
 	}
@@ -242,14 +321,36 @@ func StackSelect(cfg Config, selector string) (selected, all []Stack, err error)
 	}
 	sel := strings.TrimSpace(selector)
 	if sel == "" || sel == SelectorAll {
-		return all, all, nil
+		return EnabledStacks(all), all, nil
 	}
 	for _, s := range all {
 		if s.Name == sel {
+			if !s.IsEnabled() {
+				return nil, nil, disabledStack(s)
+			}
 			return []Stack{s}, all, nil
 		}
 	}
 	return nil, nil, unknownStack(sel, all)
+}
+
+// EnabledStacks drops the stacks switched off by `enabled:`.
+func EnabledStacks(all []Stack) []Stack {
+	out := make([]Stack, 0, len(all))
+	for _, s := range all {
+		if s.IsEnabled() {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// disabledStack refuses a stack named on the command line that config has
+// switched off - quietly doing nothing would read as a pass.
+func disabledStack(s Stack) error {
+	_, why, _ := s.Enabled.Value()
+	return fmt.Errorf("%s.%s is switched off (enabled: %s) - turn it on in .clog.yaml, or set that variable to true",
+		StackKey, s.Name, why)
 }
 
 // StackWatch resolves a selector for the one foreground verb. An empty selector
@@ -267,10 +368,17 @@ func StackWatch(cfg Config, selector string) (chosen Stack, all []Stack, err err
 		return Stack{}, nil, fmt.Errorf("`clog watch %s` is refused: a watch command is an interactive foreground process, so pick one of %s",
 			SelectorAll, strings.Join(StackNames(all), ", "))
 	case "":
-		return all[0], all, nil
+		on := EnabledStacks(all)
+		if len(on) == 0 {
+			return Stack{}, nil, fmt.Errorf("every %s entry is switched off (enabled:), so there is nothing to watch", StackKey)
+		}
+		return on[0], all, nil
 	}
 	for _, s := range all {
 		if s.Name == sel {
+			if !s.IsEnabled() {
+				return Stack{}, nil, disabledStack(s)
+			}
 			return s, all, nil
 		}
 	}
@@ -290,9 +398,14 @@ func StackIgnored(selected, all []Stack) []string {
 	}
 	var out []string
 	for _, s := range all {
-		if !keep[s.Name] {
-			out = append(out, s.Name)
+		if keep[s.Name] {
+			continue
 		}
+		if _, why, _ := s.Enabled.Value(); !s.IsEnabled() {
+			out = append(out, s.Name+" (enabled: "+why+")")
+			continue
+		}
+		out = append(out, s.Name)
 	}
 	return out
 }

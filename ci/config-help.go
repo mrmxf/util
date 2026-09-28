@@ -56,6 +56,7 @@ MODE -> INFISICAL (clog CI mode decides; see clog CI mode --help)
       - {name: site, type: hugo}             # hugo | golang | golang-lib | container | tinygo
       - name: box                            # a verb can name one: clog deploy prod box
         type: container
+        enabled: ${BUILD_IMAGE:-true}        # optional: false, $VAR, or ${VAR:-default} (unset = on)
         with:                                # make-phase settings: clog CI stack get with.<key>
           containerfile: Containerfile       # bc-podman: rootless, FROM scratch is fine
           platforms: [linux/amd64, linux/arm64]

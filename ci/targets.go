@@ -88,6 +88,15 @@ func (t Target) validate(name string) error {
 // TargetNames lists the targets that deploy in a mode, optionally filtered by
 // kind, in config order made stable by sorting.
 func TargetNames(cfg Config, mode, kind string) ([]string, error) {
+	// A target whose stack is switched off (ci.stack[].enabled) never deploys:
+	// nothing built its artifact.
+	var all []Stack
+	if len(cfg.Stack) > 0 {
+		var err error
+		if all, err = Stacks(cfg); err != nil {
+			return nil, err
+		}
+	}
 	var names []string
 	for _, name := range sortedKeys(cfg.Targets) {
 		t := cfg.Targets[name]
@@ -96,6 +105,15 @@ func TargetNames(cfg Config, mode, kind string) ([]string, error) {
 		}
 		if !t.deploysIn(mode) || (kind != "" && t.Kind != kind) {
 			continue
+		}
+		if all != nil {
+			owner, err := StackOf(t, all)
+			if err != nil {
+				return nil, fmt.Errorf("ci.targets.%s: %w", name, err)
+			}
+			if !owner.IsEnabled() {
+				continue
+			}
 		}
 		names = append(names, name)
 	}

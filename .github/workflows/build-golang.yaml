@@ -53,22 +53,13 @@ jobs:
           clog-repo: ${{ inputs.clog-repo }}
           token: ${{ secrets.clog_download_token }}
 
-      - name: login to the container registry (DOCKER_PAT from Infisical)
-        if: env.do_deploy == 'true'
-        run: |
-          t="$(clog ci targets --kind container-registry | head -1)"
-          [ -z "$t" ] && { clog Log -I "no container-registry target - no docker login"; exit 0; }
-          CLOG_TARGET="$t" clog ci run -- bash -c \
-            'printf %s "$DOCKER_PAT" | docker login -u "$(clog ci target get user --required)" --password-stdin'
-
-      - name: install toolchain (slsa-verifier, ko)
+      - name: install toolchain (slsa-verifier)
         if: env.do_build == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}   # GitHub API rate limit for version lookups
         run: |
           clog Install slsa-verifier --verbose
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          clog Install ko --verbose
 
       - name: build (clog ci run -- clog build, mode ${{ env.build_mode }})
         if: env.do_build == 'true'

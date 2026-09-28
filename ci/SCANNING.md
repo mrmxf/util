@@ -133,11 +133,17 @@ the common repo writes one line and nothing else:
 
 | stack | `tools` | `watch` | `chk` | `make` |
 |---|---|---|---|---|
-| `hugo` | hugo, ko, trivy | `hugo server -D` | `pre-build lint scan` | `hugo ko` |
+| `hugo` | hugo, trivy | `hugo server -D` | `pre-build lint scan` | `hugo` |
 | `golang` | golang, trivy | `go run .` | `pre-build lint test scan` | `golang` |
 | `golang-lib` | golang, trivy | `gotestsum --watch` | `pre-build lint test scan` | `golang` |
-| `container` | golang, ko, trivy | `docker compose watch` | `pre-build lint test scan` | `golang ko` |
+| `container` | golang, podman, trivy | `podman compose watch` | `pre-build lint test scan` | `golang podman` |
 | `tinygo` | tinygo, trivy | `tinygo flash && tinygo monitor` | `pre-build lint scan` | `tinygo` |
+
+A stack can be switched off without deleting it: `enabled: false`, or
+`enabled: $SOME_VAR` so the environment decides (unset or empty means on). A
+switched-off stack is not built, linted or scanned, its targets do not deploy,
+the verbs' banner says `ignoring [box (enabled: false)]`, and naming it on the
+command line is refused rather than silently skipped.
 
 Every column is overridable per repo, and `ci.modes.<mode>` may override again:
 
@@ -446,7 +452,8 @@ is fit to push; `clog build --fast` makes no claim at all.** That is a strong
 promise, and six things in the flow today quietly break it. They matter more than
 the scanning work, because a gate that cannot fail is worse than no gate.
 
-**1. `clog build` pushes to a public registry.** `bc-ko`
+**1. `clog build` pushes to a public registry.** *(Fixed: ko is retired, and
+`bc-podman` never pushes - see below.)* `bc-ko`
 ([embedfs/konfig.yaml:447](../embedfs/konfig.yaml#L447)) runs `ko build` with
 `KO_DOCKER_REPO` set, which publishes. A verb that means "am I ready" must not
 mutate the outside world, and a pull request build currently either publishes an
@@ -696,9 +703,9 @@ those bytes with `podman manifest push --all`. ko could not do this: its
 multi-platform output only exists as a push, so a deployer could not simply
 load a tarball and send it.
 
-`bc-ko` is unchanged for the repos still on it: a deploying CI run pushes from
-inside the build, and `build-check.yaml` keeps its registry login for them. It
-goes when the last ko repo names `podman` in its make list.
+ko is retired (2026-09-28): `bc-ko`, its install recipe, the `hugo` type's
+`ko` make phase and the build-time registry logins are gone. A Hugo site that
+ships a container declares a second stack of type `container`.
 
 ## Rollout
 

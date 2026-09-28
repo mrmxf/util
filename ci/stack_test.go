@@ -51,7 +51,7 @@ func TestStackDefaultsComeFromTheType(t *testing.T) {
 	if strings.Join(s.Chk, " ") != "pre-build lint scan" {
 		t.Errorf("chk = %v, want the hugo default", s.Chk)
 	}
-	if strings.Join(s.Make, " ") != "hugo ko" {
+	if strings.Join(s.Make, " ") != "hugo" {
 		t.Errorf("make = %v, want the hugo default", s.Make)
 	}
 	if s.Watch != "hugo server -D" {
@@ -177,10 +177,10 @@ func TestStackUnionDedupes(t *testing.T) {
 	if got := strings.Join(StackChk(all), " "); got != "pre-build lint scan test" {
 		t.Errorf("chk union = %q, want declaration order with no repeats", got)
 	}
-	if got := strings.Join(StackMake(all), " "); got != "hugo ko golang" {
+	if got := strings.Join(StackMake(all), " "); got != "hugo golang" {
 		t.Errorf("make union = %q", got)
 	}
-	if got := strings.Join(StackTools(all), " "); got != "hugo ko trivy golang golangci-lint staticcheck" {
+	if got := strings.Join(StackTools(all), " "); got != "hugo trivy golang golangci-lint staticcheck" {
 		t.Errorf("tools union = %q", got)
 	}
 }

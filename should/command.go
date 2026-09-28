@@ -36,7 +36,7 @@ This is particularly useful for checking build targets, configuration flags,
 or any space-separated lists stored in environment variables.
 
 Examples:
-  export MAKE="data hugo exe ko"
+  export MAKE="data hugo exe podman"
   clog Should MAKE "hugo"         # Returns 0 (success) - hugo found
   clog Should MAKE "docker"       # Returns 1 (not found) - docker missing
   clog Should MISSING "anything"  # Returns 2 (no env var)

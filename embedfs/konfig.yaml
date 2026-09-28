@@ -309,11 +309,9 @@ check:
             [ "$scan_artifact_vuln" = "none" ] && [ "$scan_artifact_secrets" != "true" ] && continue
             case "$scan_artifact_vuln" in
               image)
-                # bc-podman's OCI layout when the ref is one, else bc-ko's
-                # tarball, else a registry reference
+                # bc-podman's OCI layout when the ref is one, else a registry reference
                 REF="$scan_artifact_ref"
-                if [ -d "$scan_artifact_ref" ]; then REF="--input $scan_artifact_ref"
-                elif [ -f _clog_build/artifacts/image.tar ]; then REF="--input _clog_build/artifacts/image.tar"; fi
+                [ -d "$scan_artifact_ref" ] && REF="--input $scan_artifact_ref"
                 trivy image --severity "$scan_artifact_severity" --format sarif \
                   --output "_clog_build/scan/$t-vuln.sarif" $REF || ERR=1
                 ;;
@@ -754,59 +752,6 @@ snippets:
       exit $ERR
     fi
     clog BC stash log -1 build -2 golang -3 status -S "✅ golang build ok"
-
-  # ▼▼▼ bc-ko ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-  bc-ko: |
-    eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
-
-    ERR=0
-    # image tags from git + mode (releases.yaml is history): prod builds a clean
-    # release tag -> v1.2.3 + latest; dev -> v1.2.3-dev.3.gabc1234 + latest-dev
-    mode="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
-    tag1="$(clog BC gen buildinfo "$mode" --format docker-tag)" || exit 1
-    tag2="latest"; [ "$mode" = prod ] || tag2="latest-dev"
-
-    clog BC stash log -1 build -2 ko -3 start -I "⚒️  build ko →$cU hub.docker.com/$DOCKER_NS/$PROJECT:$cW$tag1$cX and$cW $tag2$cX"
-
-    # config is in .ko.yaml
-    # use the default docker repo unless told otherwise
-    [ -z "$KO_DOCKER_REPO" ] && KO_DOCKER_REPO="$DOCKER_NS"
-    export KO_DOCKER_REPO                                      # push to repo
-    export KO_CONFIG_PATH=".ko.yaml"                           # build options
-    export KO_DATA_DATE_EPOCH=$(git log -1 --format='%ct')     # date on image
-
-    wd="$(pwd)"
-    mkdir -p "$wd/_clog_build/artifacts"
-    VERBOSE="" # --verbose
-    cd www-podserver/
-    # A LOCAL BUILD NEVER PUSHES. `clog build` means "am I ready to push", so on
-    # a laptop and on any run that is not deploying it must not mutate the
-    # outside world - and scanning an image that is already public inverts the
-    # point of scanning it. Such a run writes a tarball, and the artifact sweep
-    # reads that tarball.
-    #
-    # A deploying CI run still pushes from here, because there is no
-    # container-registry deployer yet: ci/deploy.go registers github-pages and
-    # nothing else, so `clog CI deploy` cannot publish an image. Until that
-    # deployer exists, moving the push out of the build would simply mean the
-    # image never reaches the registry. See ci/SCANNING.md.
-    #
-    # --sbom=spdx (was none): the SPDX document is the cheapest accurate input
-    # for scanning a distroless image, and throwing it away cost us the scan.
-    if [ "${do_deploy:-false}" = true ]; then
-      ko build $VERBOSE --base-import-paths --sbom=spdx --tags "$tag1" --tags "$tag2" .
-      ((ERR+=$?))
-    else
-      ko build $VERBOSE --base-import-paths --sbom=spdx --push=false \
-        --tarball="$wd/_clog_build/artifacts/image.tar" --tags "$tag1" .
-      ((ERR+=$?))
-    fi
-    cd "$wd"
-    if [ $ERR -gt 0 ]; then
-      clog BC stash log -1 build -2 ko -3 status -E "❌ failed $PROJECT:$tag1 and $tag2"
-      exit $(((ERR+=$?)))
-    fi
-    clog BC stash log -1 build -2 ko -3 status -S "✅ ok $PROJECT:$tag1 and $tag2"
 
   # ▼▼▼ bc-podman ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   #  make phase `podman` - one multi-platform image per selected stack that has

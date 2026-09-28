@@ -27,8 +27,6 @@ tools:
     recipepath: "recipes/infisical.yaml"
   jq:
     recipepath: "recipes/jq.yaml"
-  ko:
-    recipepath: "recipes/ko.yaml"
   kubectl:
     recipepath: "recipes/kubectl.yaml"
   podman:
