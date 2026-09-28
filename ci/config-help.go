@@ -52,9 +52,17 @@ MODE -> INFISICAL (clog CI mode decides; see clog CI mode --help)
       deploy:                                # keyed by MODE; PRs never deploy
         dev:  {branches: [main, rc, dev]}    # globs, * also matches "/"
         prod: {tags: ["v*"]}                       # + schedule: true to let scheduled runs deploy
+    stack:                                   # what this repo builds: clog CI stack list
+      - {name: site, type: hugo}             # hugo | golang | golang-lib | container | tinygo
+      - name: box                            # a verb can name one: clog deploy prod box
+        type: container
+        with:                                # make-phase settings: clog CI stack get with.<key>
+          containerfile: Containerfile       # bc-podman: rootless, FROM scratch is fine
+          platforms: [linux/amd64, linux/arm64]
+          go-main: cmd/server                # cross-compiled on the host, no emulation
     modes:                                   # per-mode BUILD settings: clog CI mode get <key>
-      dev:  {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts"}
-      prod: {base-url: "https://example.com/"}
+      dev:  {base-url: "http://localhost:1313/", hugo-flags: "--buildDrafts", noindex: "true"}
+      prod: {base-url: "https://example.com/"}       # hugo-flags unset = hugo's defaults per mode
     targets:                                 # deploy destinations: clog CI target list / target get
       bucket:
         kind: bucket                         # container-registry | bucket | package
@@ -63,6 +71,12 @@ MODE -> INFISICAL (clog CI mode decides; see clog CI mode --help)
         # modes: [prod]                      # optional; default: the modes with a data block
         dev:  {bucket: "<s3-bucket>", prefix: "bin/dev"}
         prod: {bucket: "<s3-bucket>", prefix: "bin/{tag}"}    # tokens {tag} {version} {sha} {mode}
+      registry:
+        kind: container-registry             # pushes _clog_build/artifacts/<stack>.oci with podman
+        stack: box                           # which stack built it (default: the first)
+        modes: [prod]
+        require: [DOCKER_PAT]                # used through a temp auth file, never argv
+        prod: {image: "docker.io/<ns>/<name>:{tag}", also-tags: [latest], user: "<ns>"}
     require:                                 # extra checks, merged with the target's require
       deploy: {optional: [HOOK_SLACK]}
     infisical:

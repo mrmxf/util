@@ -55,6 +55,7 @@ var deployers = map[string]Deployer{
 	KindGitHubPages:    deployGitHubPages,
 	KindGitHubRelease:  deployGitHubRelease,
 	KindCloudflarePage: deployCloudflarePages,
+	KindRegistry:       deployContainerRegistry,
 }
 
 // execCommand runs name in dir and returns its combined output. A package var
@@ -65,6 +66,9 @@ var execCommand = func(dir, name string, args ...string) (string, error) {
 	out, err := c.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
+
+// lookPath is exec.LookPath, replaceable in tests.
+var lookPath = exec.LookPath
 
 // mkdirTemp is os.MkdirTemp, replaceable in tests.
 var mkdirTemp = os.MkdirTemp

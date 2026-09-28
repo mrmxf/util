@@ -184,8 +184,15 @@ check:
               hugo)
                 clog BC stash log -1 check -2 lint -3 "$s" -I "lint $s (hugo): no linter configured yet"
                 ;;
-              golang|golang-lib|container)
+              golang|golang-lib)
                 clog Check golang || ERR=1
+                ;;
+              container)
+                # A container's Go code can be its own module (with.go-main,
+                # which bc-podman cross-compiles) - lint it there, since
+                # ./... at the root cannot cross a module boundary.
+                d="$(clog CI stack get with.go-main --stack "$s")"
+                ( cd "${d:-.}" && clog Check golang ) || ERR=1
                 ;;
               tinygo)
                 # the firmware half needs build tags the host half must not see
@@ -302,9 +309,11 @@ check:
             [ "$scan_artifact_vuln" = "none" ] && [ "$scan_artifact_secrets" != "true" ] && continue
             case "$scan_artifact_vuln" in
               image)
-                # a tarball on a build that is not deploying, a reference when it is
+                # bc-podman's OCI layout when the ref is one, else bc-ko's
+                # tarball, else a registry reference
                 REF="$scan_artifact_ref"
-                [ -f _clog_build/artifacts/image.tar ] && REF="--input _clog_build/artifacts/image.tar"
+                if [ -d "$scan_artifact_ref" ]; then REF="--input $scan_artifact_ref"
+                elif [ -f _clog_build/artifacts/image.tar ]; then REF="--input _clog_build/artifacts/image.tar"; fi
                 trivy image --severity "$scan_artifact_severity" --format sarif \
                   --output "_clog_build/scan/$t-vuln.sarif" $REF || ERR=1
                 ;;
@@ -428,7 +437,8 @@ snippets:
   #   clog watch                # interactive loop: hugo server, go run, tinygo monitor
   #   clog build dev --fast     # skip every gate - a long way still to go
   #   clog build dev|prod       # every gate passed - ready to push
-  #   clog deploy dev|prod      # publish what was built
+  #   clog deploy dev|prod      # publish: CI publishes what its build job gated,
+  #                             # a laptop builds first
   #
   #  Each takes an optional stack name. build and deploy take EVERY stack by
   #  default, because the rigorous thing should be what you get for free - and
@@ -488,6 +498,17 @@ snippets:
 
   deploy: |
     eval "$(clog verb-args "$@")" || exit 1
+    # On a laptop, deploy BUILDS FIRST - same mode, same stack. Publishing
+    # whatever the last build left behind is how `clog build prod; clog deploy`
+    # would put a production-URL site on staging. (A CI deploy job publishes
+    # the artifact its build job gated, with `clog CI deploy`, not this verb.)
+    # Then the deployers' secrets: they are in Infisical, not the shell, so the
+    # rest runs once under `clog CI run` - one login for every target.
+    # CLOG_CI_RUN marks the re-run, so it neither builds twice nor loops.
+    if [ -z "${CI:-}" ] && [ "${CLOG_CI_RUN:-}" != "1" ]; then
+      clog build "$@" || exit 1
+      exec clog CI run -- clog deploy "$@"
+    fi
     # verb-args parses [dev|prod] [stack] and drops every other flag, so
     # --dry-run is picked up here. Publishing is the one verb worth
     # rehearsing: it is the only one that changes the outside world.
@@ -584,13 +605,21 @@ snippets:
     exit 0
 
   # ▼▼▼ bc-hugo ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #  Everything that differs between modes is ci.modes.<mode>:
+  #    base-url     --baseURL, so a staging host or a project Pages path links right
+  #    hugo-flags   replaces the default; set it EMPTY for none. Unset keeps the
+  #                 default: dev --buildDrafts --buildFuture --buildExpired, prod none
+  #    noindex      "true" writes robots.txt Disallow + an X-Robots-Tag header
+  #  --gc --minify --cleanDestinationDir in every mode: a staging build is worth
+  #  nothing as a rehearsal if it is not built the way production is.
+  #  Output goes to hugo's own publishDir (hugo.yaml), not a guessed kodata/.
   bc-hugo: |
     eval "$(clog Source project config); $(clog Crayon)"  # setting & highlights
     flow="$1"
     phase="$2"
 
-    ERR=0
-    clog BC stash log -1 build -2 hugo -3 start -I "⚒️  build hugo $phase→$cF kodata/"
+    mode="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
+    clog BC stash log -1 build -2 hugo -3 start -I "⚒️  build hugo $mode"
 
     # Content may be a content/ directory OR a module mount declared in
     # module.yaml. Ask hugo what it can actually see: a mount-only repo is
@@ -599,25 +628,45 @@ snippets:
       clog BC stash log -1 build -2 hugo -3 content -E "⚒️  build hugo has no content - no content/ dir and no module mount"
       exit 1
     fi
-    clog BC stash log -1 build -2 hugo -3 purge -I "$STEP.$(((++s))). purge$cF kodata/$cX, build site"
-    rm -rf kodata/*
+    publish="$(hugo config --format json 2>/dev/null | jq -r '.publishdir // empty')"
+    publish="${publish:-public}"
 
-    opt="$opt --buildDrafts --buildFuture --buildExpired"
-    [ "$(clog CI mode)" = prod ] && opt=""
-    # A site published under a path (project Pages, a staging host) needs its
-    # base URL at build time or every link is wrong. Comes from ci.modes.
-    baseUrl="$(clog CI mode get base-url)"
-    [ -n "$baseUrl" ] && opt="$opt --baseURL $baseUrl"
-    clog BC stash log -1 build -2 hugo -3 hugoBuild -I "$STEP.$(((++s))). build hugo $phase→${cF}kodata/$cC $opt"
-    hugo build --minify --logLevel info $opt
-    ((ERR+=$?))
-
-    if [ $ERR -gt 0 ]; then
-      clog BC stash log -1 build -2 hugo -3 hugoBuild -E "❌ hugo build to kodata/ failed with $ERR errors"
-      exit $ERR
+    settings="$(clog CI mode show 2>/dev/null)"
+    if printf '%s\n' "$settings" | grep -q '^hugo-flags='; then
+      flags="$(clog CI mode get hugo-flags)"
+    else
+      flags="--buildDrafts --buildFuture --buildExpired"
+      [ "$mode" = prod ] && flags=""
     fi
-    clog BC stash log -1 build -2 hugo -3 hugoBuild -S "✅ hugo build to kodata/ ok"
-    
+    args=(--gc --minify --cleanDestinationDir --logLevel info)
+    baseUrl="$(clog CI mode get base-url)"
+    [ -n "$baseUrl" ] && args+=(--baseURL "$baseUrl")
+    read -ra extra <<< "$flags"
+    args+=("${extra[@]}")
+
+    clog BC stash log -1 build -2 hugo -3 hugoBuild -I "hugo build → $cF$publish/$cC ${args[*]}$cX"
+    if ! hugo build "${args[@]}"; then
+      clog BC stash log -1 build -2 hugo -3 hugoBuild -E "❌ hugo build to $publish/ failed"
+      exit 1
+    fi
+    [ -f "$publish/index.html" ] || {
+      clog BC stash log -1 build -2 hugo -3 hugoBuild -E "❌ hugo build wrote no $publish/index.html"; exit 1; }
+
+    # --- keep a staging copy, and every *.pages.dev copy, out of search -------
+    # robots.txt asks politely; X-Robots-Tag is what is obeyed, and it covers
+    # PDFs and images robots.txt cannot. _headers is read by Cloudflare Pages
+    # and served as a plain file anywhere else. The pages.dev rule is written in
+    # every mode: until a domain cuts over, the Pages copy of prod is a
+    # duplicate of the real site.
+    [ -s "$publish/_headers" ] && printf '\n' >> "$publish/_headers"
+    printf 'https://:project.pages.dev/*\n  X-Robots-Tag: noindex, nofollow\n' >> "$publish/_headers"
+    if [ "$(clog CI mode get noindex)" = "true" ]; then
+      printf 'User-agent: *\nDisallow: /\n' > "$publish/robots.txt"
+      printf '\n/*\n  X-Robots-Tag: noindex, nofollow\n' >> "$publish/_headers"
+      clog BC stash log -1 build -2 hugo -3 noindex -I "$mode build marked noindex (robots.txt + X-Robots-Tag)"
+    fi
+    clog BC stash log -1 build -2 hugo -3 hugoBuild -S "✅ hugo $mode → $publish/ ($(find "$publish" -type f | wc -l) files)"
+
   # ▼▼▼ bc-golang ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   #  $EXE   is the executable name - overrides the default of $PROJECT
   #  $TITLE is the title string for semver
@@ -758,6 +807,83 @@ snippets:
       exit $(((ERR+=$?)))
     fi
     clog BC stash log -1 build -2 ko -3 status -S "✅ ok $PROJECT:$tag1 and $tag2"
+
+  # ▼▼▼ bc-podman ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #  make phase `podman` - one multi-platform image per selected stack that has
+  #  a with.containerfile, written as an OCI layout to
+  #  _clog_build/artifacts/<stack>.oci. It NEVER pushes: `clog build` means "am
+  #  I ready to push", the artifact sweep scans this layout, and the
+  #  container-registry deployer pushes exactly these bytes.
+  #
+  #    ci.stack[].with:
+  #      containerfile  www-podserver/Containerfile   (required - no file, no image)
+  #      context        .                             (default .)
+  #      platforms      [linux/amd64, linux/arm64]    (default both)
+  #      go-main        www-podserver                 (optional) a Go main package,
+  #                     cross-compiled per platform to
+  #                     _clog_build/podman/<stack>/<os>-<arch>/<go-bin>
+  #      go-bin         podserver                     (default basename of go-main)
+  #
+  #  go-main is how an image gets a Go binary with no base image and no
+  #  emulation: Go cross-compiles on the host, so the Containerfile is
+  #  `FROM scratch` + COPY and nothing executes inside the build. The
+  #  Containerfile receives --build-arg BIN=<that dir> and podman's own
+  #  TARGETOS/TARGETARCH:  COPY ${BIN}/${TARGETOS}-${TARGETARCH}/podserver /
+  #
+  #  Rootless and daemonless. --timestamp is the commit time, so a rebuild of
+  #  one commit gives one image.
+  bc-podman: |
+    eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
+    command -v podman >/dev/null 2>&1 || {
+      clog BC stash log -1 build -2 podman -3 tool -E "podman not found - clog Install podman"; exit 1; }
+    mode="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
+    version="$(clog BC gen buildinfo "$mode" --format version)" || exit 1
+    epoch="$(git log -1 --format=%ct)"
+    sha="$(git rev-parse HEAD)"
+    wd="$(pwd)"
+    built=0
+
+    for s in $(clog CI stack list names --stack "${CLOG_STACK:-}"); do
+      cf="$(clog CI stack get with.containerfile --stack "$s")"
+      [ -z "$cf" ] && continue
+      [ -f "$cf" ] || { clog BC stash log -1 build -2 podman -3 "$s" -E "stack $s: no Containerfile at $cf"; exit 1; }
+      ctx="$(clog CI stack get with.context --stack "$s")"; ctx="${ctx:-.}"
+      plats="$(clog CI stack get with.platforms --stack "$s" | paste -sd, -)"
+      plats="${plats:-linux/amd64,linux/arm64}"
+      bin="_clog_build/podman/$s"
+      oci="_clog_build/artifacts/$s.oci"
+      list="localhost/clog-build-$s"
+
+      gomain="$(clog CI stack get with.go-main --stack "$s")"
+      if [ -n "$gomain" ]; then
+        gobin="$(clog CI stack get with.go-bin --stack "$s")"; gobin="${gobin:-$(basename "$gomain")}"
+        rm -rf "$bin"
+        for p in ${plats//,/ }; do
+          os="${p%%/*}"; arch="${p#*/}"; arch="${arch%%/*}"
+          clog BC stash log -1 build -2 podman -3 "$s" -I "go build $gomain → $cF$bin/$os-$arch/$gobin$cX"
+          ( cd "$gomain" && CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags="-s -w" -o "$wd/$bin/$os-$arch/$gobin" . ) || {
+            clog BC stash log -1 build -2 podman -3 "$s" -E "❌ go build $gomain for $p failed"; exit 1; }
+        done
+      fi
+
+      clog BC stash log -1 build -2 podman -3 "$s" -I "⚒️  podman $cF$cf$cX [$plats] $version →$cF $oci$cX"
+      podman manifest rm "$list" >/dev/null 2>&1 || true
+      podman build --platform "$plats" --manifest "$list" --timestamp "$epoch" \
+        --build-arg BIN="$bin" \
+        --label org.opencontainers.image.version="$version" \
+        --label org.opencontainers.image.revision="$sha" \
+        -f "$cf" "$ctx" || {
+        clog BC stash log -1 build -2 podman -3 "$s" -E "❌ podman build $s failed"; exit 1; }
+      rm -rf "$oci"; mkdir -p "$(dirname "$oci")"
+      podman manifest push --all --quiet "$list" "oci:$wd/$oci" || {
+        clog BC stash log -1 build -2 podman -3 "$s" -E "❌ could not write $oci"; exit 1; }
+      podman manifest rm "$list" >/dev/null 2>&1 || true
+      clog BC stash log -1 build -2 podman -3 "$s" -S "✅ $s image → $oci ($(du -sh "$oci" | cut -f1))"
+      built=$((built+1))
+    done
+    [ "$built" -gt 0 ] || clog BC stash log -1 build -2 podman -3 status -W "no selected stack has with.containerfile - nothing to build"
+    exit 0
 
   # ▼▼▼ dev ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
   #             _

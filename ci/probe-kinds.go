@@ -134,9 +134,15 @@ func probeRegistry(d Deployment) []ProbeFinding {
 	}
 	var out []ProbeFinding
 
-	if _, err := execCommand(".", "docker", "manifest", "inspect", image); err != nil {
+	// podman where it is installed - the deployer pushes with it, so it has
+	// the login - else docker.
+	tool, args := "docker", []string{"manifest", "inspect", image}
+	if _, err := lookPath("podman"); err == nil {
+		tool, args = "podman", []string{"manifest", "inspect", "docker://" + strings.TrimPrefix(image, "docker://")}
+	}
+	if _, err := execCommand(".", tool, args...); err != nil {
 		out = append(out, fail(d, "tag exists",
-			fmt.Sprintf("docker manifest inspect %s failed - the deploy reported success but the tag is not there: %v", image, err)))
+			fmt.Sprintf("%s manifest inspect %s failed - the deploy reported success but the tag is not there: %v", tool, image, err)))
 		return out
 	}
 	out = append(out, pass(d, "tag exists", image))

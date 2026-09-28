@@ -254,10 +254,11 @@ func runApt(pkg string, sudo bool) error {
 		return fmt.Errorf("apt-install: package field is required")
 	}
 	slog.Info("apt-get install", "package", pkg)
-	if sudo {
-		return streamCmd("sudo", "apt-get", "install", "-y", pkg)
+	// A fresh container has no package lists at all, so install alone fails.
+	if err := privileged(sudo, "apt-get", "update", "-qq"); err != nil {
+		return err
 	}
-	return streamCmd("apt-get", "install", "-y", pkg)
+	return privileged(sudo, "apt-get", "install", "-y", pkg)
 }
 
 func runDnf(pkg string, sudo bool) error {
@@ -265,11 +266,28 @@ func runDnf(pkg string, sudo bool) error {
 		return fmt.Errorf("dnf-install: package field is required")
 	}
 	slog.Info("dnf install", "package", pkg)
-	if sudo {
-		return streamCmd("sudo", "dnf", "install", "-y", pkg)
-	}
-	return streamCmd("dnf", "install", "-y", pkg)
+	return privileged(sudo, "dnf", "install", "-y", pkg)
 }
+
+// privileged runs a command that needs root. sudo is how a laptop or a CI VM
+// gets there, but a CI job in a container (GitLab's docker executor) is
+// already root and usually has no sudo binary - so root runs it directly.
+func privileged(sudo bool, name string, args ...string) error {
+	cmd, argv := privilegedArgv(sudo, geteuid(), name, args...)
+	return streamCmd(cmd, argv...)
+}
+
+// privilegedArgv is privileged's decision, separated so it can be tested
+// without running anything.
+func privilegedArgv(sudo bool, euid int, name string, args ...string) (string, []string) {
+	if sudo && euid != 0 {
+		return "sudo", append([]string{name}, args...)
+	}
+	return name, args
+}
+
+// geteuid is os.Geteuid, replaceable in tests.
+var geteuid = os.Geteuid
 
 // runGoInstallFallback implements the [g]o-install choice of the arm64 gap: it
 // builds the tool from source via `go install` using an import path declared in
@@ -315,10 +333,7 @@ func runLnxNative(inst *InstallSpec, platform Platform) error {
 		return err
 	}
 	slog.Info("lnx-native install", "package", inst.Package, "family", platform.Family())
-	if inst.Sudo {
-		return streamCmd("sudo", "bash", "-c", script)
-	}
-	return streamCmd("bash", "-c", script)
+	return privileged(inst.Sudo, "bash", "-c", script)
 }
 
 // lnxNativeScript builds the idempotent repo-add + key-import + install shell
@@ -378,10 +393,7 @@ func lnxNativeScript(inst *InstallSpec, family string) (string, error) {
 
 func installExtractTar(inst *InstallSpec, artifactPath string) error {
 	slog.Info("extracting tar archive", "dest", inst.Dest)
-	if inst.Sudo {
-		return streamCmd("sudo", "tar", "-C", inst.Dest, "-xzf", artifactPath)
-	}
-	return streamCmd("tar", "-C", inst.Dest, "-xzf", artifactPath)
+	return privileged(inst.Sudo, "tar", "-C", inst.Dest, "-xzf", artifactPath)
 }
 
 func installExtractTarBinary(inst *InstallSpec, artifactPath, version, osVal, archVal string) error {
@@ -401,26 +413,17 @@ func installExtractTarBinary(inst *InstallSpec, artifactPath, version, osVal, ar
 	srcPath := filepath.Join(tmpDir, binary)
 	destPath := filepath.Join(inst.Dest, filepath.Base(binary))
 
-	if inst.Sudo {
-		return streamCmd("sudo", "cp", srcPath, destPath)
-	}
-	return streamCmd("cp", srcPath, destPath)
+	return privileged(inst.Sudo, "cp", srcPath, destPath)
 }
 
 func installDeb(inst *InstallSpec, artifactPath string) error {
 	slog.Info("installing deb package", "path", artifactPath)
-	if inst.Sudo {
-		return streamCmd("sudo", "dpkg", "-i", artifactPath)
-	}
-	return streamCmd("dpkg", "-i", artifactPath)
+	return privileged(inst.Sudo, "dpkg", "-i", artifactPath)
 }
 
 func installRpm(inst *InstallSpec, artifactPath string) error {
 	slog.Info("installing rpm package", "path", artifactPath)
-	if inst.Sudo {
-		return streamCmd("sudo", "dnf", "install", "-y", artifactPath)
-	}
-	return streamCmd("dnf", "install", "-y", artifactPath)
+	return privileged(inst.Sudo, "dnf", "install", "-y", artifactPath)
 }
 
 func installCopyBinary(inst *InstallSpec, artifactPath string) error {
@@ -434,10 +437,7 @@ func installCopyBinary(inst *InstallSpec, artifactPath string) error {
 		}
 	}
 	slog.Info("copying binary", "to", inst.Dest)
-	if inst.Sudo {
-		return streamCmd("sudo", "cp", artifactPath, inst.Dest)
-	}
-	return streamCmd("cp", artifactPath, inst.Dest)
+	return privileged(inst.Sudo, "cp", artifactPath, inst.Dest)
 }
 
 // streamCmd runs a command and streams its output through slog.

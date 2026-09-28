@@ -686,16 +686,19 @@ Two things deliberately fall short of what this document specifies.
 staged, and a repo still pinned to `@workflows-v1` has to keep building until it
 moves. They go when www-mrmxf-com lands.
 
-**`clog build` does not yet mean "never pushes" on a deploying CI run.** The rule
-holds absolutely on a laptop and on every run that is not deploying: those write
-`tmp/image.tar` and the artifact sweep reads it. A deploying CI run still pushes
-from inside `bc-ko`, because `ci/deploy.go` registers a deployer for
-`github-pages` and nothing else. With no container-registry deployer, moving the
-push out of the build would mean the image never reaches the registry at all.
+**`clog build` never pushes - for podman stacks.** A stack whose `with:` names a
+`containerfile` is built by `bc-podman` into a multi-platform OCI layout at
+`_clog_build/artifacts/<stack>.oci`. The artifact sweep scans that layout (in
+every mode, so a prod-only registry target is still swept on each pull
+request), CI carries it from the build job to the deploy job, and the
+`container-registry` deployer (`deploy-container-registry.go`) pushes exactly
+those bytes with `podman manifest push --all`. ko could not do this: its
+multi-platform output only exists as a push, so a deployer could not simply
+load a tarball and send it.
 
-That deployer is the next piece of work, and it is not small: `ko` builds
-multi-platform, so a deployer cannot simply `docker load` a tarball and push it.
-Until it exists, the developer-facing promise is intact and the CI one is not.
+`bc-ko` is unchanged for the repos still on it: a deploying CI run pushes from
+inside the build, and `build-check.yaml` keeps its registry login for them. It
+goes when the last ko repo names `podman` in its make list.
 
 ## Rollout
 

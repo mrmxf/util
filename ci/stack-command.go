@@ -88,9 +88,9 @@ var stackListCmd = &cobra.Command{
 	},
 }
 
-// stackGetCmd - `clog CI stack get <watch|type>`: exactly one value.
+// stackGetCmd - `clog CI stack get <watch|type|with.KEY>`: exactly one value.
 var stackGetCmd = &cobra.Command{
-	Use:          "get <watch|type>",
+	Use:          "get <watch|type|with.KEY>",
 	Short:        "print one resolved setting for a single stack",
 	SilenceUsage: true,
 	Args:         cobra.ExactArgs(1),
@@ -123,9 +123,24 @@ var stackGetCmd = &cobra.Command{
 			}
 			fmt.Fprintln(out, selected[0].Type)
 			return nil
-		default:
-			return fmt.Errorf("unknown `CI stack get` key %q (want watch or type)", args[0])
 		}
+		// with.<key>: one of a stack's make-phase settings. Needs exactly one
+		// stack, because two stacks' Containerfiles cannot be one answer.
+		if key, ok := strings.CutPrefix(args[0], "with."); ok && key != "" {
+			selected, _, err := StackSelect(cfg, stackSelectFlag)
+			if err != nil {
+				return err
+			}
+			if len(selected) != 1 {
+				return fmt.Errorf("`CI stack get with.%s` needs one stack (--stack <name>); this repo has %s",
+					key, strings.Join(StackNames(selected), ", "))
+			}
+			if v := StackWith(selected[0], key); v != "" {
+				fmt.Fprintln(out, v)
+			}
+			return nil
+		}
+		return fmt.Errorf("unknown `CI stack get` key %q (want watch, type or with.<key>)", args[0])
 	},
 }
 

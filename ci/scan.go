@@ -190,6 +190,18 @@ func ArtifactScan(env Env, cfg Config, mode, name string) (ScanAxis, error) {
 	a.IgnoreFile = strOr(a.IgnoreFile, strOr(cfg.Scan.Artifact.IgnoreFile, defaultIgnoreFile))
 	a.SkipDirs = strOr(a.SkipDirs, cfg.Scan.Artifact.SkipDirs)
 
+	// A registry target whose stack builds with podman is swept from the OCI
+	// layout this build wrote, not from a registry reference. That path is the
+	// same in every mode, so a prod-only target is still scanned on every pull
+	// request - and what is scanned is what the deployer will push.
+	if strings.TrimSpace(a.Ref) == "" && a.Vuln == VulnImage && t.Kind == KindRegistry {
+		if all, err := Stacks(cfg); err == nil {
+			if owner, err := StackOf(t, all); err == nil && StackWith(owner, "containerfile") != "" {
+				a.Ref = OCILayoutPath(owner.Name)
+			}
+		}
+	}
+
 	// The reference is per-mode data, not a field on Target: `dir` and `image`
 	// live inside the dev:/prod: maps. Resolve it the same way `ci target get`
 	// does, so a dev build asking for a prod-only dir fails by name.

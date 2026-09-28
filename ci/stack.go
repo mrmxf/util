@@ -50,6 +50,10 @@ type Stack struct {
 	Watch string   `json:"watch"` // the interactive inner loop
 	Chk   []string `json:"chk"`   // check phases, run before make
 	Make  []string `json:"make"`  // build phases
+	// With holds a make phase's own settings - the Containerfile bc-podman
+	// builds, the platforms it builds for. Free-form on purpose: a new phase
+	// gains settings without a Go change. Read with `clog CI stack get with.<key>`.
+	With map[string]any `json:"with"`
 }
 
 // stackDefaults is what a type supplies when the stack leaves a field empty.
@@ -82,11 +86,14 @@ var stackTypeDefaults = map[string]stackDefaults{
 		Chk:   []string{"pre-build", "lint", "test", "scan"},
 		Make:  []string{"golang"},
 	},
+	// podman, not ko: rootless, daemonless, and the Containerfile says what is
+	// in the image rather than a builder's defaults. bc-podman never pushes -
+	// the container-registry deployer does. A repo still on ko names it in make.
 	StackContainer: {
-		Tools: []string{"golang", "ko", "trivy", "golangci-lint", "staticcheck"},
-		Watch: "docker compose watch",
+		Tools: []string{"golang", "podman", "trivy", "golangci-lint", "staticcheck"},
+		Watch: "podman compose watch",
 		Chk:   []string{"pre-build", "lint", "test", "scan"},
-		Make:  []string{"golang", "ko"},
+		Make:  []string{"golang", "podman"},
 	},
 	StackTinygo: {
 		Tools: []string{"tinygo", "trivy"},
@@ -331,6 +338,16 @@ func unionStrings(lists ...[]string) []string {
 		}
 	}
 	return out
+}
+
+// StackWith returns one of a stack's `with:` settings, rendered as a string.
+// Unset is "" with no error: the `get` contract.
+func StackWith(s Stack, key string) string {
+	v, ok := s.With[key]
+	if !ok || isEmptyValue(v) {
+		return ""
+	}
+	return renderValue(v)
 }
 
 // StackTools, StackChk and StackMake union a field across the selected stacks.

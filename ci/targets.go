@@ -118,6 +118,20 @@ func TargetGet(env Env, cfg Config, mode, name, key string, required bool) (stri
 	if key == "kind" {
 		return t.Kind, nil
 	}
+	// "stack" is the owning ci.stack entry, resolved - so a script can find
+	// what that stack built (bc-podman's OCI layout) without repeating the
+	// empty-means-first-stack rule.
+	if key == "stack" {
+		all, err := Stacks(cfg)
+		if err != nil {
+			return "", err
+		}
+		owner, err := StackOf(t, all)
+		if err != nil {
+			return "", err
+		}
+		return owner.Name, nil
+	}
 	row := t.data(mode)
 	if row == nil {
 		return "", fmt.Errorf("ci.targets.%s has no %s: block, so it cannot deploy in %s mode", name, mode, mode)
