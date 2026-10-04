@@ -33,6 +33,8 @@ tools:
     recipepath: "recipes/podman.yaml"
   prometheus:
     recipepath: "recipes/prometheus.yaml"
+  scw:
+    recipepath: "recipes/scw.yaml"
   slsa-verifier:
     recipepath: "recipes/slsa-verifier.yaml"
   staticcheck:

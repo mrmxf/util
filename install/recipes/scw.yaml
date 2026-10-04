@@ -1,0 +1,60 @@
+scw:
+  description: "Scaleway CLI (scw) — latest by default, pin with: clog Install scw --use 2.63.0"
+  check:
+    name: "scw (Scaleway CLI) is installed"
+    try:
+      - "scw version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  scw (Scaleway CLI) is installed"'
+    else: 'clog Log -W "  scw not found — install with: clog Install scw"'
+  version:
+    strategy: github-latest
+    repo: scaleway/scaleway-cli
+    tag-prefix: "v"
+  platforms:
+    # brew installs the formula's version: on macOS only --use latest works.
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: scw
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: scw
+    # Linux: the release's raw binary, not its .deb/.rpm: only 2.63.0 onwards ships
+    # packages, and a binary exists for every version, so --use <version> always pins.
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/scaleway/scaleway-cli/releases/download/v{version}/scaleway-cli_{version}_linux_arm64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/scw
+        chmod: "0755"
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/scaleway/scaleway-cli/releases/download/v{version}/scaleway-cli_{version}_linux_amd64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/scw
+        chmod: "0755"
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/scaleway/scaleway-cli/releases/download/v{version}/scaleway-cli_{version}_linux_arm64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/scw
+        chmod: "0755"
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/scaleway/scaleway-cli/releases/download/v{version}/scaleway-cli_{version}_linux_amd64"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/scw
+        chmod: "0755"
+        sudo: true
