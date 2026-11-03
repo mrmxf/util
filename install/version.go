@@ -55,6 +55,8 @@ func resolveOnce(spec *VersionSpec) (string, error) {
 		return resolveNpmLatest(spec)
 	case "node-lts":
 		return resolveNodeLTS(spec)
+	case "nvmrc":
+		return resolveNvmrc(spec)
 	case "pinned":
 		return resolvePinned(spec)
 	default:

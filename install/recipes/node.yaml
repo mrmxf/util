@@ -1,5 +1,5 @@
 node:
-  description: "Node.js (newest LTS by default; pin with --use) — needed by npm-built web apps and wrangler"
+  description: "Node.js (pinned by ./.nvmrc, else newest LTS; or --use) — needed by npm-built web apps and wrangler"
   check:
     name: "node is installed"
     try:
@@ -7,7 +7,10 @@ node:
     then: 'clog Log -I "  node is installed"'
     else: 'clog Log -W "  node not found — install with: clog Install node"'
   version:
-    strategy: node-lts
+    # a repo pins its Node in .nvmrc (e.g. 26.13.0), as go.mod pins Go
+    strategy: nvmrc
+    fallback:
+      strategy: node-lts
   platforms:
     # brew installs its current node formula: on macOS only --use latest works.
     darwin/arm64:
@@ -28,6 +31,11 @@ node:
         strategy: extract-tar
         dest: /usr/local
         strip-components: 1
+        # an older Node already in /usr/local (CI runners ship one) leaves npm
+        # files that crash the new npm; remove them first
+        clean:
+          - /usr/local/lib/node_modules/npm
+          - /usr/local/lib/node_modules/corepack
         sudo: true
     linux-deb/amd64:
       download:
@@ -39,6 +47,11 @@ node:
         strategy: extract-tar
         dest: /usr/local
         strip-components: 1
+        # an older Node already in /usr/local (CI runners ship one) leaves npm
+        # files that crash the new npm; remove them first
+        clean:
+          - /usr/local/lib/node_modules/npm
+          - /usr/local/lib/node_modules/corepack
         sudo: true
     linux-rpm/arm64:
       download:
@@ -50,6 +63,11 @@ node:
         strategy: extract-tar
         dest: /usr/local
         strip-components: 1
+        # an older Node already in /usr/local (CI runners ship one) leaves npm
+        # files that crash the new npm; remove them first
+        clean:
+          - /usr/local/lib/node_modules/npm
+          - /usr/local/lib/node_modules/corepack
         sudo: true
     linux-rpm/amd64:
       download:
@@ -61,4 +79,9 @@ node:
         strategy: extract-tar
         dest: /usr/local
         strip-components: 1
+        # an older Node already in /usr/local (CI runners ship one) leaves npm
+        # files that crash the new npm; remove them first
+        clean:
+          - /usr/local/lib/node_modules/npm
+          - /usr/local/lib/node_modules/corepack
         sudo: true

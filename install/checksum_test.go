@@ -73,3 +73,21 @@ func TestURLBase(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckCleanPath(t *testing.T) {
+	for p, ok := range map[string]bool{
+		"/usr/local/lib/node_modules/npm":      true,
+		"/usr/local/lib/node_modules/corepack": true,
+		"/usr/local/lib":                       true,
+		"/usr/local":                           false,
+		"/opt":                                 false,
+		"/":                                    false,
+		"usr/local/lib/x":                      false,
+		"/usr/local/lib/../../etc":             false,
+		"/usr/local/lib/x/":                    false,
+	} {
+		if err := checkCleanPath(p); (err == nil) != ok {
+			t.Errorf("checkCleanPath(%q) = %v, want ok=%v", p, err, ok)
+		}
+	}
+}

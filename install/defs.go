@@ -31,7 +31,7 @@ var AllPlatforms = []Platform{
 
 // VersionSpec describes how to resolve the required version of a tool.
 type VersionSpec struct {
-	Strategy   string `yaml:"strategy"`              // go-mod | hugo-module | github-latest | github-tags | npm-latest | node-lts | pinned
+	Strategy   string `yaml:"strategy"`              // go-mod | hugo-module | nvmrc | github-latest | github-tags | npm-latest | node-lts | pinned
 	File       string `yaml:"file,omitempty"`        // go-mod, hugo-module: path to read
 	Repo       string `yaml:"repo,omitempty"`        // github-latest, github-tags: "owner/repo"
 	TagPrefix  string `yaml:"tag-prefix,omitempty"`  // github-latest, github-tags: strip from tag to form version
@@ -78,7 +78,12 @@ type InstallSpec struct {
 	// StripComponents drops leading path elements when extracting (extract-tar),
 	// like tar --strip-components: node-v24.1.0-linux-x64/bin/node -> bin/node.
 	StripComponents int `yaml:"strip-components,omitempty"`
-	Sudo     bool   `yaml:"sudo,omitempty"`
+	// Clean lists absolute paths removed before an extract-tar, so files a
+	// previous install of the tool left behind cannot mix with the new ones
+	// (e.g. a newer Node over an older one: two npm versions in one
+	// node_modules/npm crash npm). Each must be at least three levels deep.
+	Clean []string `yaml:"clean,omitempty"`
+	Sudo  bool     `yaml:"sudo,omitempty"`
 
 	// lnx-native: the tool ships its own signed apt AND dnf repos. The installer
 	// picks the apt or dnf sequence from the platform family and runs it

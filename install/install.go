@@ -405,12 +405,34 @@ func lnxNativeScript(inst *InstallSpec, family string) (string, error) {
 // ---- artifact-based install strategies ----
 
 func installExtractTar(inst *InstallSpec, artifactPath string) error {
+	for _, p := range inst.Clean {
+		if err := checkCleanPath(p); err != nil {
+			return err
+		}
+		slog.Info("removing what a previous install left", "path", p)
+		if err := privileged(inst.Sudo, "rm", "-rf", "--", p); err != nil {
+			return fmt.Errorf("extract-tar: clean %s: %w", p, err)
+		}
+	}
 	slog.Info("extracting tar archive", "dest", inst.Dest, "strip-components", inst.StripComponents)
 	args := []string{"-C", inst.Dest, "-xzf", artifactPath}
 	if inst.StripComponents > 0 {
 		args = append(args, "--strip-components="+strconv.Itoa(inst.StripComponents))
 	}
 	return privileged(inst.Sudo, "tar", args...)
+}
+
+// checkCleanPath refuses a clean: path that could remove more than one tool's
+// files: it must be absolute, already clean, and at least three levels deep
+// (/usr/local/lib/node_modules/npm yes; /usr/local, /opt or / no).
+func checkCleanPath(p string) error {
+	if !filepath.IsAbs(p) || filepath.Clean(p) != p {
+		return fmt.Errorf("extract-tar: clean path %q must be absolute and clean", p)
+	}
+	if strings.Count(p, "/") < 3 {
+		return fmt.Errorf("extract-tar: clean path %q is too shallow to remove safely", p)
+	}
+	return nil
 }
 
 func installExtractTarBinary(inst *InstallSpec, artifactPath, version, osVal, archVal string) error {

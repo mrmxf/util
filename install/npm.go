@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"regexp"
 	"strings"
 )
 
@@ -58,6 +60,31 @@ func resolveNodeLTS(_ *VersionSpec) (string, error) {
 	}
 	return "", fmt.Errorf("node-lts: no LTS release in %s", url)
 }
+
+// resolveNvmrc reads a Node version pin from a .nvmrc (or .node-version) file,
+// the way go-mod reads go.mod: "26.13.0" or "v26.13.0". nvm aliases such as
+// lts/* or node name no single version, so they are an error and the recipe's
+// fallback (e.g. node-lts) decides.
+func resolveNvmrc(spec *VersionSpec) (string, error) {
+	file := spec.File
+	if file == "" {
+		file = ".nvmrc"
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("nvmrc: cannot read %q: %w", file, err)
+	}
+	line := strings.TrimSpace(strings.SplitN(string(data), "\n", 2)[0])
+	v := strings.TrimPrefix(line, "v")
+	if !nodeVersionRE.MatchString(v) {
+		return "", fmt.Errorf("nvmrc: %q in %q is not an exact version like 26.13.0", line, file)
+	}
+	logVersionMatch(v, "node version file", "path", absPath(file), "line", line)
+	return v, nil
+}
+
+// nodeVersionRE is an exact Node release version: major.minor.patch.
+var nodeVersionRE = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
 // getJSON GETs url and decodes the JSON body into v.
 func getJSON(url string, v any) error {

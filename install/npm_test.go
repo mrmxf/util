@@ -6,6 +6,8 @@ package install
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -47,5 +49,34 @@ func TestResolveNodeLTS(t *testing.T) {
 	v, err := ResolveVersion(&VersionSpec{Strategy: "node-lts"})
 	if err != nil || v != "24.11.0" {
 		t.Fatalf("node-lts = %q, %v; want 24.11.0 (newest LTS, not the newer Current)", v, err)
+	}
+}
+
+func TestResolveNvmrc(t *testing.T) {
+	dir := t.TempDir()
+	write := func(body string) string {
+		p := filepath.Join(dir, ".nvmrc")
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	for body, want := range map[string]string{"26.13.0\n": "26.13.0", "v26.13.0": "26.13.0", " v24.11.1 \n# c\n": "24.11.1"} {
+		v, err := ResolveVersion(&VersionSpec{Strategy: "nvmrc", File: write(body)})
+		if err != nil || v != want {
+			t.Errorf("nvmrc %q = %q, %v; want %s", body, v, err, want)
+		}
+	}
+	for _, body := range []string{"lts/*", "node", "26", ""} {
+		if _, err := ResolveVersion(&VersionSpec{Strategy: "nvmrc", File: write(body)}); err == nil {
+			t.Errorf("nvmrc %q should be refused", body)
+		}
+	}
+	// no file: the fallback decides
+	fakeUpstream(t)
+	v, err := ResolveVersion(&VersionSpec{Strategy: "nvmrc", File: filepath.Join(dir, "missing"),
+		Fallback: &VersionSpec{Strategy: "node-lts"}})
+	if err != nil || v != "24.11.0" {
+		t.Errorf("missing .nvmrc with node-lts fallback = %q, %v", v, err)
 	}
 }
