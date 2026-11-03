@@ -27,9 +27,10 @@ const (
 	StackGolangLib = "golang-lib"
 	StackContainer = "container"
 	StackTinygo    = "tinygo"
+	StackNode      = "node"
 )
 
-var knownStackTypes = []string{StackHugo, StackGolang, StackGolangLib, StackContainer, StackTinygo}
+var knownStackTypes = []string{StackHugo, StackGolang, StackGolangLib, StackContainer, StackTinygo, StackNode}
 
 // SelectorAll asks a verb to act on every stack. It is also a reserved name.
 const SelectorAll = "all"
@@ -176,6 +177,15 @@ var stackTypeDefaults = map[string]stackDefaults{
 		Watch: "tinygo flash && tinygo monitor",
 		Chk:   []string{"pre-build", "lint", "scan"},
 		Make:  []string{"tinygo"},
+	},
+	// An npm-built web app (SvelteKit, Vite…): `npm ci` then `npm run build`
+	// in with.dir. Listed BEFORE a golang stack that embeds its output, so the
+	// make phases run npm then golang. See bc-npm for the with: keys.
+	StackNode: {
+		Tools: []string{"node", "trivy"},
+		Watch: "npm run dev",
+		Chk:   []string{"pre-build", "scan"},
+		Make:  []string{"npm"},
 	},
 }
 

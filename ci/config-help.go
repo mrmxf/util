@@ -53,7 +53,14 @@ MODE -> INFISICAL (clog CI mode decides; see clog CI mode --help)
         dev:  {branches: [main, rc, dev]}    # globs, * also matches "/"
         prod: {tags: ["v*"]}                       # + schedule: true to let scheduled runs deploy
     stack:                                   # what this repo builds: clog CI stack list
-      - {name: site, type: hugo}             # hugo | golang | golang-lib | container | tinygo
+      - {name: site, type: hugo}             # hugo | golang | golang-lib | container | tinygo | node
+      - name: web                            # node: npm ci + npm run build (bc-npm); list it
+        type: node                           #   BEFORE a golang stack that embeds its output
+        with: {dir: web, out: dist, artifact: web}   # artifact => _clog_build/artifacts/web-<version>.tar.gz
+      - name: app                            # golang: bc-golang, per stack
+        type: golang
+        with: {go-main: ./cmd/app, exe: app, title: App, tags: [webembed],
+               platforms: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]}
       - name: box                            # a verb can name one: clog deploy prod box
         type: container
         enabled: ${BUILD_IMAGE:-true}        # optional: false, $VAR, or ${VAR:-default} (unset = on)

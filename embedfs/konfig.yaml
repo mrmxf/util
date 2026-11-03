@@ -675,6 +675,77 @@ snippets:
   #  $TITLE is the title string for semver
   #  artifacts appear in _clog_build/artifacts/
   #  you may have to make a project copy of this function to make semver work
+  # ▼▼▼ bc-npm ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #  make phase `npm` - an npm-built web app (SvelteKit, Vite…), once per
+  #  selected stack whose make includes npm (stack type `node`). List the node
+  #  stack BEFORE a golang stack that embeds its output: make phases run in
+  #  stack order.
+  #
+  #    ci.stack[].with:
+  #      dir       web                (default .) where package.json lives
+  #      script    build              (default build) the npm script to run
+  #      out       pb_public          (optional) the build output dir, from the repo root
+  #      artifact  nabu-web           (optional, needs out) also archive out as
+  #                _clog_build/artifacts/<artifact>-<version>.tar.gz, where
+  #                <version> is the build's (vX.Y.Z on a release tag): list it
+  #                as a release asset `<artifact>-{tag}.tar.gz`
+  #
+  #  `npm ci` when a package-lock.json exists (reproducible), else npm install.
+  #  The archive is reproducible with GNU tar: sorted, owner 0, commit time.
+  bc-npm: |
+    eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
+    command -v npm >/dev/null 2>&1 || {
+      clog BC stash log -1 build -2 npm -3 tool -E "npm not found - clog Install node"; exit 1; }
+    mode="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
+    version="$(clog BC gen buildinfo "$mode" --format version)" || exit 1
+    art="_clog_build/artifacts"; mkdir -p "$art"
+    built=0
+    for s in $(clog CI stack list names --stack "${CLOG_STACK:-}"); do
+      clog CI stack list make --stack "$s" | grep -qx npm || continue
+      dir="$(clog CI stack get with.dir --stack "$s")"; dir="${dir:-.}"
+      script="$(clog CI stack get with.script --stack "$s")"; script="${script:-build}"
+      out="$(clog CI stack get with.out --stack "$s")"
+      artifact="$(clog CI stack get with.artifact --stack "$s")"
+      [ -f "$dir/package.json" ] || {
+        clog BC stash log -1 build -2 npm -3 "$s" -E "stack $s: no package.json in $dir"; exit 1; }
+      install="ci"; [ -f "$dir/package-lock.json" ] || install="install"
+      clog BC stash log -1 build -2 npm -3 "$s" -I "npm $install && npm run $script in $cF$dir$cX"
+      ( cd "$dir" && npm "$install" --no-audit --no-fund && npm run "$script" ) || {
+        clog BC stash log -1 build -2 npm -3 "$s" -E "❌ npm build of $dir failed"; exit 1; }
+      if [ -n "$artifact" ]; then
+        [ -n "$out" ] && [ -d "$out" ] || {
+          clog BC stash log -1 build -2 npm -3 "$s" -E "stack $s: with.artifact needs with.out, and ${out:-<unset>} is not a directory after the build"; exit 1; }
+        tarball="$art/$artifact-$version.tar.gz"
+        if tar --version 2>/dev/null | grep -q 'GNU tar'; then
+          when="$(git log -1 --format=%ct 2>/dev/null || date +%s)"
+          tar -C "$out" --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$when" -czf "$tarball" . || exit 1
+        else
+          tar -C "$out" -czf "$tarball" . || exit 1
+        fi
+        clog BC stash log -1 build -2 npm -3 "$s" -I "archived $cF$out$cX → $cF$tarball$cX ($(du -h "$tarball" | cut -f1))"
+      fi
+      built=$((built+1))
+    done
+    [ "$built" -gt 0 ] || clog BC stash log -1 build -2 npm -3 status -W "no selected stack makes npm - nothing to build"
+    clog BC stash log -1 build -2 npm -3 status -S "✅ npm build ok"
+
+  # ▼▼▼ bc-golang ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+  #  make phase `golang` - cross-compiled binaries into _clog_build/artifacts,
+  #  once per selected stack whose make includes golang. Without any with:
+  #  keys this is the classic build: package `.`, named $EXE / $TITLE, for
+  #  linux and darwin on amd64 and arm64.
+  #
+  #    ci.stack[].with:
+  #      go-main    ./cmd/nabu        (default .) the main package to build
+  #      exe        nabu              (default $EXE) artifact base name
+  #      title      Nabu              (default $TITLE) printable name
+  #      tags       [webembed]        (optional) go build -tags
+  #      platforms  [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64,
+  #                  windows/amd64, windows/arm64]
+  #                 (default: the four linux/darwin ones; add windows to opt in)
+  #
+  #  Artifacts are <exe>-<amd|arm>-<lnx|mac|win>[.exe]. Two stacks that resolve
+  #  to the same main package + exe build once.
   bc-golang: |
     # version stamp from git (clog BC gen buildinfo), not releases.yaml. prod mode
     # refuses anything but a clean release tag, so a prod binary is a tag.
@@ -707,7 +778,7 @@ snippets:
       buildMsg="$cos$gofile$cX $tPlatform $bPlatform"
       clog BC stash log -1 build -2 golang -3 fGoBuild -I "$buildMsg"
 
-      GOOS="$goos" GOARCH="$goarch" go build -o $gofile -ldflags "$lds"
+      GOOS="$goos" GOARCH="$goarch" go build ${tags:+-tags "$tags"} -o $gofile -ldflags "$lds" "$gomain"
       err=$?
       if [ $err -gt 0 ]; then
         clog BC stash log -1 build -2 golang -3 fGoBuild -E "Linker data string was:$cC -ldflags \"$lds\""
@@ -724,33 +795,58 @@ snippets:
       clog BC stash log -1 build -2 golang -3 fGoBuild -I "$buildMsg ... $size"
     }
     eval "$(clog Source project config); $(clog Crayon)" # setting & highlights
-    [ -z "$EXE" ] && clog BC stash log -1 build -2 golang -3 gobuild -E "\$EXE must be set to the target filename" && exit 1
-    [ -z "$TITLE" ]&&clog BC stash log -1 build -2 golang -3 gobuild -E "\$TITLE must be set to the target's printable name" && exit 1
     ERR=0
 
     mode="$(clog CI mode 2>/dev/null | grep -xE 'dev|prod' | head -1)"; mode="${mode:-dev}"
     linkerPath="$(clog BC get linkerpath)"
-    # $FLAVOUR marks the build edition (+plain, +mrmxf) so two binaries built
-    # from different main packages can be told apart at runtime. Optional.
-    lds="$(clog BC gen buildinfo "$mode" --format ldflags --name "$EXE" --title "$TITLE" --flavour "${FLAVOUR:-}")" || {
-      clog BC stash log -1 build -2 golang -3 gobuild -E "❌ no build info for a $mode build - see the error above"
-      exit 1; }
     version="$(clog BC gen buildinfo "$mode" --format version)"
-
-    clog BC stash log -1 build -2 golang -3 start -I "⚒️  golang build $EXE $version ($mode) →$cF _clog_build/artifacts/$EXE-cpu-os"
 
     # Canonical build output: _clog_build/artifacts/. Named, gitignored and
     # the same in every repo, so a debugger looks rather than guesses.
     out="_clog_build/artifacts"
     mkdir -p "$out"
-    app="$EXE"                             # command you type to run the app
 
-      fGoBuild "$out"/$app-amd-lnx     linux   amd64; ((ERR+=$?))
-    # fGoBuild "$out"/$app-amd-win.exe windows amd64; ((ERR+=$?))
-      fGoBuild "$out"/$app-amd-mac     darwin  amd64; ((ERR+=$?))
-      fGoBuild "$out"/$app-arm-lnx     linux   arm64; ((ERR+=$?))
-    # fGoBuild "$out"/$app-arm-win.exe windows arm64; ((ERR+=$?))
-      fGoBuild "$out"/$app-arm-mac     darwin  arm64; ((ERR+=$?))
+    # one pass per selected golang stack; a stack with no make list (none set)
+    # still builds once, the classic way.
+    stacks="$(clog CI stack list names --stack "${CLOG_STACK:-}" 2>/dev/null)"
+    [ -z "$stacks" ] && stacks="-"
+    seen=" "
+    for s in $stacks; do
+      sflag=(); [ "$s" != "-" ] && sflag=(--stack "$s")
+      if [ "$s" != "-" ]; then
+        clog CI stack list make "${sflag[@]}" | grep -qx golang || continue
+      fi
+      withget(){ [ "$s" = "-" ] && return 0; clog CI stack get "with.$1" "${sflag[@]}"; }
+      gomain="$(withget go-main)"; gomain="${gomain:-.}"
+      case "$gomain" in .|./*|/*) ;; *) gomain="./$gomain";; esac
+      app="$(withget exe)"; app="${app:-$EXE}"
+      title="$(withget title)"; title="${title:-$TITLE}"
+      tags="$(withget tags | paste -sd, -)"
+      plats="$(withget platforms | paste -sd' ' -)"
+      plats="${plats:-linux/amd64 darwin/amd64 linux/arm64 darwin/arm64}"
+      [ -z "$app" ] && clog BC stash log -1 build -2 golang -3 gobuild -E "set with.exe on stack $s, or \$EXE, to the target filename" && exit 1
+      [ -z "$title" ] && clog BC stash log -1 build -2 golang -3 gobuild -E "set with.title on stack $s, or \$TITLE, to the target's printable name" && exit 1
+      key="$gomain|$app"
+      case "$seen" in *" $key "*) continue;; esac
+      seen="$seen$key "
+
+      # $FLAVOUR marks the build edition (+plain, +mrmxf) so two binaries built
+      # from different main packages can be told apart at runtime. Optional.
+      lds="$(clog BC gen buildinfo "$mode" --format ldflags --name "$app" --title "$title" --flavour "${FLAVOUR:-}")" || {
+        clog BC stash log -1 build -2 golang -3 gobuild -E "❌ no build info for a $mode build - see the error above"
+        exit 1; }
+
+      clog BC stash log -1 build -2 golang -3 start -I "⚒️  golang build $app ($gomain${tags:+, tags $tags}) $version ($mode) →$cF $out/$app-cpu-os"
+      for p in $plats; do
+        goos="${p%/*}"; goarch="${p#*/}"
+        case "$goos" in linux) os=lnx;; darwin) os=mac;; windows) os=win;; *)
+          clog BC stash log -1 build -2 golang -3 gobuild -E "unsupported platform $p (want linux|darwin|windows)"; ERR=$((ERR+1)); continue;; esac
+        case "$goarch" in amd64) cpu=amd;; arm64) cpu=arm;; *)
+          clog BC stash log -1 build -2 golang -3 gobuild -E "unsupported platform $p (want amd64|arm64)"; ERR=$((ERR+1)); continue;; esac
+        ext=""; [ "$goos" = "windows" ] && ext=".exe"
+        fGoBuild "$out/$app-$cpu-$os$ext" "$goos" "$goarch"; ((ERR+=$?))
+      done
+    done
 
     if [ $ERR -gt 0 ]; then
       clog BC stash log -1 build -2 golang -3 status -E "❌ golang build failed with $ERR errors"

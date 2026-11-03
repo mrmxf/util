@@ -67,6 +67,30 @@ func TestStackDefaultsComeFromTheType(t *testing.T) {
 	}
 }
 
+// A node stack builds a web app with npm, and lists before the golang stack that
+// embeds it, so `clog CI stack list make` yields npm then golang.
+func TestNodeStackBuildsBeforeGolang(t *testing.T) {
+	cfg := Config{Stack: StackList{{Name: "web", Type: StackNode}, {Name: "nabu", Type: StackGolang}}}
+	stacks, err := Stacks(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := stacks[0]
+	if strings.Join(web.Make, " ") != "npm" || strings.Join(web.Tools, " ") != "node trivy" {
+		t.Errorf("node defaults = make %v tools %v", web.Make, web.Tools)
+	}
+	if web.Watch != "npm run dev" {
+		t.Errorf("node watch = %q", web.Watch)
+	}
+	var makes []string
+	for _, s := range stacks {
+		makes = append(makes, s.Make...)
+	}
+	if strings.Join(makes, " ") != "npm golang" {
+		t.Errorf("make order = %v, want npm then golang", makes)
+	}
+}
+
 // Reserved names are rejected at parse time rather than at the moment somebody's
 // `clog build all` quietly does the wrong thing.
 func TestReservedStackNamesAreRejected(t *testing.T) {
