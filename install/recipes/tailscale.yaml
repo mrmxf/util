@@ -1,0 +1,45 @@
+tailscale:
+  description: "Tailscale — private network between hosts (official installer on Linux)"
+  check:
+    name: "tailscale is installed"
+    try:
+      - "tailscale version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  tailscale is installed"'
+    else: 'clog Log -W "  tailscale not found — install with: clog Install tailscale"'
+  version:
+    strategy: github-latest
+    repo: tailscale/tailscale
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: tailscale
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: tailscale
+    # Tailscale publishes no release binaries; its signed apt/dnf repos are set up by
+    # the official script, which always installs the current stable version.
+    linux-deb/arm64:
+      install:
+        strategy: run-script
+        script: "curl -fsSL https://tailscale.com/install.sh | sh"
+    # Tailscale publishes no release binaries; its signed apt/dnf repos are set up by
+    # the official script, which always installs the current stable version.
+    linux-deb/amd64:
+      install:
+        strategy: run-script
+        script: "curl -fsSL https://tailscale.com/install.sh | sh"
+    # Tailscale publishes no release binaries; its signed apt/dnf repos are set up by
+    # the official script, which always installs the current stable version.
+    linux-rpm/arm64:
+      install:
+        strategy: run-script
+        script: "curl -fsSL https://tailscale.com/install.sh | sh"
+    # Tailscale publishes no release binaries; its signed apt/dnf repos are set up by
+    # the official script, which always installs the current stable version.
+    linux-rpm/amd64:
+      install:
+        strategy: run-script
+        script: "curl -fsSL https://tailscale.com/install.sh | sh"

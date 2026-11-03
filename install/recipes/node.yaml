@@ -1,0 +1,64 @@
+node:
+  description: "Node.js (newest LTS by default; pin with --use) — needed by npm-built web apps and wrangler"
+  check:
+    name: "node is installed"
+    try:
+      - "node --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  node is installed"'
+    else: 'clog Log -W "  node not found — install with: clog Install node"'
+  version:
+    strategy: node-lts
+  platforms:
+    # brew installs its current node formula: on macOS only --use latest works.
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: node
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: node
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://nodejs.org/dist/v{version}/node-v{version}-linux-arm64.tar.gz"
+        checksums: "https://nodejs.org/dist/v{version}/SHASUMS256.txt"
+      install:
+        # nodejs.org's documented layout: bin/node, bin/npm and lib/ under /usr/local
+        strategy: extract-tar
+        dest: /usr/local
+        strip-components: 1
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://nodejs.org/dist/v{version}/node-v{version}-linux-x64.tar.gz"
+        checksums: "https://nodejs.org/dist/v{version}/SHASUMS256.txt"
+      install:
+        # nodejs.org's documented layout: bin/node, bin/npm and lib/ under /usr/local
+        strategy: extract-tar
+        dest: /usr/local
+        strip-components: 1
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://nodejs.org/dist/v{version}/node-v{version}-linux-arm64.tar.gz"
+        checksums: "https://nodejs.org/dist/v{version}/SHASUMS256.txt"
+      install:
+        # nodejs.org's documented layout: bin/node, bin/npm and lib/ under /usr/local
+        strategy: extract-tar
+        dest: /usr/local
+        strip-components: 1
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://nodejs.org/dist/v{version}/node-v{version}-linux-x64.tar.gz"
+        checksums: "https://nodejs.org/dist/v{version}/SHASUMS256.txt"
+      install:
+        # nodejs.org's documented layout: bin/node, bin/npm and lib/ under /usr/local
+        strategy: extract-tar
+        dest: /usr/local
+        strip-components: 1
+        sudo: true

@@ -1,0 +1,41 @@
+wrangler:
+  description: "Cloudflare wrangler CLI, a pinned global npm install (needs node: clog Install node)"
+  check:
+    name: "wrangler is installed"
+    try:
+      - "wrangler --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  wrangler is installed"'
+    else: 'clog Log -W "  wrangler not found — install with: clog Install wrangler"'
+  version:
+    # the workers-sdk repo is a monorepo with thousands of tags; npm is authoritative
+    strategy: npm-latest
+    package: wrangler
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: npm-install
+        package: wrangler
+    darwin/amd64:
+      install:
+        strategy: npm-install
+        package: wrangler
+    linux-deb/arm64:
+      install:
+        strategy: npm-install
+        package: wrangler
+        sudo: true
+    linux-deb/amd64:
+      install:
+        strategy: npm-install
+        package: wrangler
+        sudo: true
+    linux-rpm/arm64:
+      install:
+        strategy: npm-install
+        package: wrangler
+        sudo: true
+    linux-rpm/amd64:
+      install:
+        strategy: npm-install
+        package: wrangler
+        sudo: true

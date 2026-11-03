@@ -31,13 +31,14 @@ var AllPlatforms = []Platform{
 
 // VersionSpec describes how to resolve the required version of a tool.
 type VersionSpec struct {
-	Strategy   string `yaml:"strategy"`              // go-mod | hugo-module | github-latest | github-tags | pinned
+	Strategy   string `yaml:"strategy"`              // go-mod | hugo-module | github-latest | github-tags | npm-latest | node-lts | pinned
 	File       string `yaml:"file,omitempty"`        // go-mod, hugo-module: path to read
 	Repo       string `yaml:"repo,omitempty"`        // github-latest, github-tags: "owner/repo"
 	TagPrefix  string `yaml:"tag-prefix,omitempty"`  // github-latest, github-tags: strip from tag to form version
 	TagFilter  string `yaml:"tag-filter,omitempty"`  // github-tags: regexp; only matching tags are candidates
 	TagExclude string `yaml:"tag-exclude,omitempty"` // github-tags: regexp to skip (default: rc/beta/alpha/pre)
 	Value      string `yaml:"value,omitempty"`       // pinned: exact version string to return
+	Package    string `yaml:"package,omitempty"`     // npm-latest: npm package name (e.g. "wrangler")
 	// VersionPrefix is carried by {version} but not typed by users, e.g. "go"
 	// for go1.26.4. `--use 1.26.4` is normalised to prefix + bare version.
 	VersionPrefix string       `yaml:"version-prefix,omitempty"`
@@ -59,17 +60,24 @@ type DownloadSpec struct {
 	Script   string    `yaml:"script,omitempty"` // curl-script: the script URL
 	Args     string    `yaml:"args,omitempty"`   // curl-script: arguments appended to the curl | bash call
 	SLSA     *SLSASpec `yaml:"slsa,omitempty"`   // optional SLSA provenance verification
+	// Checksums is an optional URL template ({version}, {os}, {arch}) of a
+	// sha256sum-format file. When set, the downloaded asset must be listed in it
+	// with a matching SHA-256, or the install stops before anything is installed.
+	Checksums string `yaml:"checksums,omitempty"`
 }
 
 // InstallSpec describes how to install the downloaded (or fetched) artifact.
 type InstallSpec struct {
-	Strategy string `yaml:"strategy"`          // brew-install | apt-install | dnf-install | lnx-native | go-install | run-script | extract-tar | extract-tar-binary | install-deb | install-rpm | copy-binary
-	Package  string `yaml:"package,omitempty"` // brew-install, apt-install, dnf-install
+	Strategy string `yaml:"strategy"`          // brew-install | apt-install | dnf-install | lnx-native | go-install | npm-install | run-script | extract-tar | extract-tar-binary | install-deb | install-rpm | copy-binary
+	Package  string `yaml:"package,omitempty"` // brew-install, apt-install, dnf-install, npm-install
 	Import   string `yaml:"import,omitempty"`  // go-install: full import path@version
 	Script   string `yaml:"script,omitempty"`  // run-script: shell script body
 	Dest     string `yaml:"dest,omitempty"`    // extract-tar, copy-binary: destination path
 	Binary   string `yaml:"binary,omitempty"`  // extract-tar-binary: path inside archive; supports {version} token
 	Chmod    string `yaml:"chmod,omitempty"`   // copy-binary: permission bits (e.g. "0755")
+	// StripComponents drops leading path elements when extracting (extract-tar),
+	// like tar --strip-components: node-v24.1.0-linux-x64/bin/node -> bin/node.
+	StripComponents int `yaml:"strip-components,omitempty"`
 	Sudo     bool   `yaml:"sudo,omitempty"`
 
 	// lnx-native: the tool ships its own signed apt AND dnf repos. The installer

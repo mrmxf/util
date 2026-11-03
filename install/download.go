@@ -15,31 +15,43 @@ import (
 )
 
 // downloadArtifact fetches the tool artifact according to dl.Strategy.
-// Returns the local path and a cleanup func that removes the temp file.
-func downloadArtifact(dl *DownloadSpec, version, osVal, archVal string) (path string, cleanup func(), err error) {
+// Returns the local path, the asset's published file name (what a checksums
+// file lists), and a cleanup func that removes the temp file.
+func downloadArtifact(dl *DownloadSpec, version, osVal, archVal string) (path, name string, cleanup func(), err error) {
 	switch dl.Strategy {
 	case "url-template":
 		return downloadURLTemplate(dl, version, osVal, archVal)
 	case "github-release-asset":
 		return downloadGitHubReleaseAsset(dl, version)
 	default:
-		return "", noop, fmt.Errorf("download strategy %q not implemented", dl.Strategy)
+		return "", "", noop, fmt.Errorf("download strategy %q not implemented", dl.Strategy)
 	}
 }
 
-func downloadURLTemplate(dl *DownloadSpec, version, osVal, archVal string) (string, func(), error) {
+func downloadURLTemplate(dl *DownloadSpec, version, osVal, archVal string) (string, string, func(), error) {
 	rawURL := substituteTokens(dl.URL, version, osVal, archVal)
 	slog.Info("downloading", "url", rawURL)
-	return downloadToTemp(rawURL, extFromURL(rawURL))
+	p, cleanup, err := downloadToTemp(rawURL, extFromURL(rawURL))
+	return p, urlBase(rawURL), cleanup, err
 }
 
-func downloadGitHubReleaseAsset(dl *DownloadSpec, version string) (string, func(), error) {
+func downloadGitHubReleaseAsset(dl *DownloadSpec, version string) (string, string, func(), error) {
 	name, url, err := resolveGitHubReleaseAsset(dl, version)
 	if err != nil {
-		return "", noop, err
+		return "", "", noop, err
 	}
 	slog.Info("matched release asset", "name", name)
-	return downloadToTemp(url, extFromURL(name))
+	p, cleanup, err := downloadToTemp(url, extFromURL(name))
+	return p, name, cleanup, err
+}
+
+// urlBase is the last path element of a URL, without query or fragment.
+func urlBase(rawURL string) string {
+	u := rawURL
+	if i := strings.IndexAny(u, "?#"); i >= 0 {
+		u = u[:i]
+	}
+	return u[strings.LastIndex(u, "/")+1:]
 }
 
 // resolveGitHubReleaseAsset finds the release asset matching dl.Filter and

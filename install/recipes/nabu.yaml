@@ -1,0 +1,73 @@
+nabu:
+  description: "Nabu — LMS engine for hands-on courses: one binary, web app embedded (sha256-verified)"
+  check:
+    name: "nabu is installed"
+    try:
+      - "nabu --help >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  nabu is installed"'
+    else: 'clog Log -W "  nabu not found — install with: clog Install nabu"'
+  version:
+    strategy: github-latest
+    repo: mrmxf/nabu
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mrmxf/nabu/releases/download/v{version}/nabu-arm-mac"
+        checksums: "https://github.com/mrmxf/nabu/releases/download/v{version}/checksums.txt"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/nabu
+        chmod: "0755"
+        sudo: true
+    darwin/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mrmxf/nabu/releases/download/v{version}/nabu-amd-mac"
+        checksums: "https://github.com/mrmxf/nabu/releases/download/v{version}/checksums.txt"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/nabu
+        chmod: "0755"
+        sudo: true
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mrmxf/nabu/releases/download/v{version}/nabu-arm-lnx"
+        checksums: "https://github.com/mrmxf/nabu/releases/download/v{version}/checksums.txt"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/nabu
+        chmod: "0755"
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mrmxf/nabu/releases/download/v{version}/nabu-amd-lnx"
+        checksums: "https://github.com/mrmxf/nabu/releases/download/v{version}/checksums.txt"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/nabu
+        chmod: "0755"
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mrmxf/nabu/releases/download/v{version}/nabu-arm-lnx"
+        checksums: "https://github.com/mrmxf/nabu/releases/download/v{version}/checksums.txt"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/nabu
+        chmod: "0755"
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/mrmxf/nabu/releases/download/v{version}/nabu-amd-lnx"
+        checksums: "https://github.com/mrmxf/nabu/releases/download/v{version}/checksums.txt"
+      install:
+        strategy: copy-binary
+        dest: /usr/local/bin/nabu
+        chmod: "0755"
+        sudo: true

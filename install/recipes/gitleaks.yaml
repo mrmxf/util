@@ -1,0 +1,61 @@
+gitleaks:
+  description: "gitleaks — git history and directory secret scanner (sha256-verified)"
+  check:
+    name: "gitleaks is installed"
+    try:
+      - "gitleaks version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  gitleaks is installed"'
+    else: 'clog Log -W "  gitleaks not found — install with: clog Install gitleaks"'
+  version:
+    strategy: github-latest
+    repo: gitleaks/gitleaks
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: gitleaks
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: gitleaks
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_linux_arm64.tar.gz"
+        checksums: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: gitleaks
+        dest: /usr/local/bin
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_linux_x64.tar.gz"
+        checksums: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: gitleaks
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_linux_arm64.tar.gz"
+        checksums: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: gitleaks
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_linux_x64.tar.gz"
+        checksums: "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: gitleaks
+        dest: /usr/local/bin
+        sudo: true

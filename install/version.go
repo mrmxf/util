@@ -51,6 +51,10 @@ func resolveOnce(spec *VersionSpec) (string, error) {
 		return resolveGitHubLatest(spec)
 	case "github-tags":
 		return resolveGitHubTags(spec)
+	case "npm-latest":
+		return resolveNpmLatest(spec)
+	case "node-lts":
+		return resolveNodeLTS(spec)
 	case "pinned":
 		return resolvePinned(spec)
 	default:

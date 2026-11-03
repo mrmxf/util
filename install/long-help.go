@@ -28,7 +28,12 @@ Usage:
   clog Install list              list all available tools
 
 Recipes can be overridden by setting recipepath: in your clog.yaml to a path
-on the local filesystem (bare paths check the embedded recipe store first).`
+on the local filesystem (bare paths check the embedded recipe store first).
+
+A recipe's download may name a sha256sum-format checksums file:
+  download: {strategy: url-template, url: ..., checksums: <url of checksums.txt>}
+The asset must be listed with a matching SHA-256, or nothing is installed.
+Recipes marked (sha256-verified) in clog Install list do this.`
 
 const haveHelp = `check whether a tool is installed by running its check.try command.
 

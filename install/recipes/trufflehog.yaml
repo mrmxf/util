@@ -1,0 +1,61 @@
+trufflehog:
+  description: "trufflehog — credential scanner for git history and files (sha256-verified)"
+  check:
+    name: "trufflehog is installed"
+    try:
+      - "trufflehog --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  trufflehog is installed"'
+    else: 'clog Log -W "  trufflehog not found — install with: clog Install trufflehog"'
+  version:
+    strategy: github-latest
+    repo: trufflesecurity/trufflehog
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: trufflehog
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: trufflehog
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_linux_arm64.tar.gz"
+        checksums: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: trufflehog
+        dest: /usr/local/bin
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_linux_amd64.tar.gz"
+        checksums: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: trufflehog
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_linux_arm64.tar.gz"
+        checksums: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: trufflehog
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_linux_amd64.tar.gz"
+        checksums: "https://github.com/trufflesecurity/trufflehog/releases/download/v{version}/trufflehog_{version}_checksums.txt"
+      install:
+        strategy: extract-tar-binary
+        binary: trufflehog
+        dest: /usr/local/bin
+        sudo: true

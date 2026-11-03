@@ -147,6 +147,11 @@ func runDryRun(toolName string, platform Platform, version, osVal, archVal strin
 			slog.Info("  slsa provenance", "url", url, "source-uri", dl.SLSA.SourceURI)
 			checkURL(url)
 		}
+		if dl.Checksums != "" {
+			url := substituteTokens(dl.Checksums, version, osVal, archVal)
+			slog.Info("  sha256 checksums", "url", url)
+			checkURL(url)
+		}
 	}
 	if inst != nil {
 		detail := inst.Package
@@ -181,6 +186,8 @@ func runInstallStrategy(toolName string, platform Platform, version, osVal, arch
 		return runDnf(inst.Package, inst.Sudo)
 	case "go-install":
 		return runGoInstall(inst.Import)
+	case "npm-install":
+		return runNpmInstall(inst, version)
 	case "run-script":
 		return runScript(inst.Script)
 	case "lnx-native":
@@ -190,12 +197,18 @@ func runInstallStrategy(toolName string, platform Platform, version, osVal, arch
 		if dl == nil {
 			return fmt.Errorf("tool %q: strategy %q requires a download spec", toolName, inst.Strategy)
 		}
-		artifactPath, cleanup, err := downloadArtifact(dl, version, osVal, archVal)
+		artifactPath, artifactName, cleanup, err := downloadArtifact(dl, version, osVal, archVal)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
 
+		if dl.Checksums != "" {
+			url := substituteTokens(dl.Checksums, version, osVal, archVal)
+			if err := VerifyChecksum(url, artifactName, artifactPath); err != nil {
+				return fmt.Errorf("checksum verification failed: %w", err)
+			}
+		}
 		if dl.SLSA != nil {
 			if err := VerifySLSA(dl.SLSA, artifactPath, version, osVal, archVal); err != nil {
 				return fmt.Errorf("SLSA verification failed: %w", err)
@@ -392,8 +405,12 @@ func lnxNativeScript(inst *InstallSpec, family string) (string, error) {
 // ---- artifact-based install strategies ----
 
 func installExtractTar(inst *InstallSpec, artifactPath string) error {
-	slog.Info("extracting tar archive", "dest", inst.Dest)
-	return privileged(inst.Sudo, "tar", "-C", inst.Dest, "-xzf", artifactPath)
+	slog.Info("extracting tar archive", "dest", inst.Dest, "strip-components", inst.StripComponents)
+	args := []string{"-C", inst.Dest, "-xzf", artifactPath}
+	if inst.StripComponents > 0 {
+		args = append(args, "--strip-components="+strconv.Itoa(inst.StripComponents))
+	}
+	return privileged(inst.Sudo, "tar", args...)
 }
 
 func installExtractTarBinary(inst *InstallSpec, artifactPath, version, osVal, archVal string) error {

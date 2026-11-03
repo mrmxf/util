@@ -11,6 +11,8 @@ tools:
     recipepath: "recipes/gh.yaml"
   git:
     recipepath: "recipes/git.yaml"
+  gitleaks:
+    recipepath: "recipes/gitleaks.yaml"
   glab:
     recipepath: "recipes/glab.yaml"
   golang:
@@ -29,6 +31,10 @@ tools:
     recipepath: "recipes/jq.yaml"
   kubectl:
     recipepath: "recipes/kubectl.yaml"
+  nabu:
+    recipepath: "recipes/nabu.yaml"
+  node:
+    recipepath: "recipes/node.yaml"
   podman:
     recipepath: "recipes/podman.yaml"
   prometheus:
@@ -39,9 +45,15 @@ tools:
     recipepath: "recipes/slsa-verifier.yaml"
   staticcheck:
     recipepath: "recipes/staticcheck.yaml"
+  tailscale:
+    recipepath: "recipes/tailscale.yaml"
   tinygo:
     recipepath: "recipes/tinygo.yaml"
   trivy:
     recipepath: "recipes/trivy.yaml"
+  trufflehog:
+    recipepath: "recipes/trufflehog.yaml"
+  wrangler:
+    recipepath: "recipes/wrangler.yaml"
   yq:
     recipepath: "recipes/yq.yaml"
