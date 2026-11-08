@@ -94,6 +94,10 @@ and the identity: prod uses prod-uuid, dev uses dev-uuid.
 
 Secrets are added to the command's environment only (not to $GITHUB_ENV), each
 value is registered with ::add-mask:: on GitHub, and only names are logged.
+A multi-line value is masked line by line, skipping lines under 4 characters
+or with no letter or digit (JSON/YAML brackets): a mask of "[" would redact
+every bracket in the log and make GitHub drop JSON job outputs. Such a secret
+is named in a warning - store it on one line (compact JSON) instead.
 The command also gets CLOG_CI_RUN=1. Its exit code becomes clog's.
 
 Setup: clog CI --config-help`

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 )
@@ -148,16 +149,69 @@ func fetchForContext(env Env, r Resolution, mode string) ([]Secret, error) {
 	return secrets, nil
 }
 
-// writeGitHubMasks registers every secret value (each line of multi-line
-// values) with the Actions runner so it is redacted from the job log.
+// minMaskLine is the shortest line of a multi-line secret that is masked.
+// Shorter lines carry no secret worth hiding and match too much ordinary text.
+const minMaskLine = 4
+
+// writeGitHubMasks registers every secret value with the Actions runner so it
+// is redacted from the job log.
+//
+// The runner matches masks one log line at a time, so a multi-line value is
+// registered line by line. Not every line, though: a pretty-printed JSON or
+// YAML secret has lines like "[", "}," or "-", and a mask of "[" turns every
+// bracket in the job into *** - log colour codes included - and makes GitHub
+// drop any job output containing one ("Skip output ... since it may contain
+// secret"), such as a JSON list. So a line of a multi-line value is masked
+// only when it has a letter or digit and at least minMaskLine non-space
+// characters; it is masked as written and trimmed, so a re-indented copy is
+// caught too. A single-line value is always masked, whatever it is.
 func writeGitHubMasks(w io.Writer, secrets []Secret) {
 	for _, s := range secrets {
-		for _, line := range strings.Split(s.Value, "\n") {
-			if strings.TrimSpace(line) != "" {
-				fmt.Fprintf(w, "::add-mask::%s\n", line)
+		value := strings.TrimRight(strings.ReplaceAll(s.Value, "\r\n", "\n"), "\n")
+		if !strings.Contains(value, "\n") {
+			if strings.TrimSpace(value) != "" {
+				fmt.Fprintf(w, "::add-mask::%s\n", value)
 			}
+			continue
+		}
+		masked, skipped := 0, 0
+		seen := map[string]bool{}
+		for _, line := range strings.Split(value, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			if !maskableLine(trimmed) {
+				skipped++
+				continue
+			}
+			for _, m := range []string{line, trimmed} {
+				if !seen[m] {
+					seen[m] = true
+					fmt.Fprintf(w, "::add-mask::%s\n", m)
+				}
+			}
+			masked++
+		}
+		if skipped > 0 {
+			slog.Warn("multi-line secret: short or punctuation-only lines are not masked; store it on one line (e.g. compact JSON)",
+				"name", s.Key, "masked-lines", masked, "skipped-lines", skipped)
 		}
 	}
+}
+
+// maskableLine reports whether a trimmed line of a multi-line secret is worth
+// a mask: long enough, and more than JSON/YAML punctuation.
+func maskableLine(trimmed string) bool {
+	if len([]rune(trimmed)) < minMaskLine {
+		return false
+	}
+	for _, r := range trimmed {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // childEnv returns base with the secrets added (a secret replaces an inherited
