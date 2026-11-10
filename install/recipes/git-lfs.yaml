@@ -1,0 +1,65 @@
+git-lfs:
+  description: "git-lfs — Git Large File Storage (git-lfs/git-lfs)"
+  # Installs the binary only. Run `git lfs install` once per user (or let the CI
+  # checkout do it) to register the smudge/clean filters in git config.
+  # sha256sums.asc is PGP clear-signed: the checksum lookup reads its
+  # `<hex> *<name>` lines and skips the armour.
+  check:
+    name: "git-lfs is installed"
+    try:
+      - "git lfs version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  git-lfs is installed"'
+    else: 'clog Log -W "  git-lfs not found — install with: clog Install git-lfs"'
+  version:
+    strategy: github-latest
+    repo: git-lfs/git-lfs
+    tag-prefix: "v"
+  platforms:
+    darwin/arm64:
+      install:
+        strategy: brew-install
+        package: git-lfs
+    darwin/amd64:
+      install:
+        strategy: brew-install
+        package: git-lfs
+    linux-deb/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/git-lfs-linux-arm64-v{version}.tar.gz"
+        checksums: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/sha256sums.asc"
+      install:
+        strategy: extract-tar-binary
+        binary: "git-lfs-{version}/git-lfs"
+        dest: /usr/local/bin
+        sudo: true
+    linux-deb/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/git-lfs-linux-amd64-v{version}.tar.gz"
+        checksums: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/sha256sums.asc"
+      install:
+        strategy: extract-tar-binary
+        binary: "git-lfs-{version}/git-lfs"
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/arm64:
+      download:
+        strategy: url-template
+        url: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/git-lfs-linux-arm64-v{version}.tar.gz"
+        checksums: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/sha256sums.asc"
+      install:
+        strategy: extract-tar-binary
+        binary: "git-lfs-{version}/git-lfs"
+        dest: /usr/local/bin
+        sudo: true
+    linux-rpm/amd64:
+      download:
+        strategy: url-template
+        url: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/git-lfs-linux-amd64-v{version}.tar.gz"
+        checksums: "https://github.com/git-lfs/git-lfs/releases/download/v{version}/sha256sums.asc"
+      install:
+        strategy: extract-tar-binary
+        binary: "git-lfs-{version}/git-lfs"
+        dest: /usr/local/bin
+        sudo: true

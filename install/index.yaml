@@ -11,6 +11,8 @@ tools:
     recipepath: "recipes/gh.yaml"
   git:
     recipepath: "recipes/git.yaml"
+  git-lfs:
+    recipepath: "recipes/git-lfs.yaml"
   gitleaks:
     recipepath: "recipes/gitleaks.yaml"
   glab:
