@@ -204,7 +204,7 @@ func TestStackUnionDedupes(t *testing.T) {
 	if got := strings.Join(StackMake(all), " "); got != "hugo golang" {
 		t.Errorf("make union = %q", got)
 	}
-	if got := strings.Join(StackTools(all), " "); got != "hugo trivy golang golangci-lint staticcheck" {
+	if got := strings.Join(StackTools(all), " "); got != "hugo trivy jq golang golangci-lint staticcheck" {
 		t.Errorf("tools union = %q", got)
 	}
 }

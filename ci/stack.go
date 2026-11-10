@@ -146,7 +146,9 @@ var stackTypeDefaults = map[string]stackDefaults{
 	// A hugo site is its files. A site that also ships a container declares
 	// a second stack of type container - see ci/SCANNING.md.
 	StackHugo: {
-		Tools: []string{"hugo", "trivy"},
+		// jq: the bc-hugo make phase reads publishDir from `hugo config` with
+		// it; without jq the build lands in public/ and the phase fails.
+		Tools: []string{"hugo", "trivy", "jq"},
 		Watch: "hugo server -D",
 		Chk:   []string{"pre-build", "lint", "scan"},
 		Make:  []string{"hugo"},
