@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -37,12 +39,42 @@ command instead of running it.`,
 			fmt.Printf("git checkout %s\n", version)
 			return
 		}
-		slog.Info("Checking out production release: " + version)
+		head, headErr := revParse("HEAD")
+		tagCommit, tagErr := revParse(version + "^{commit}")
+		switch {
+		case tagErr != nil:
+			slog.Error("production tag is not a local commit", "version", version, "error", tagErr)
+			os.Exit(1)
+		case headErr == nil && head == tagCommit:
+			// A scheduled rebuild with no commits since the release: HEAD is
+			// already the release, so a checkout could only fail, never help.
+			slog.Info("Already at production release: "+version, "commit", short(head))
+			return
+		}
+		slog.Info("Checking out production release: "+version, "from", short(head), "to", short(tagCommit))
 		if err := gitNetRun("-c", "advice.detachedHead=false", "checkout", "-q", version, "--"); err != nil {
 			slog.Error("Error checking out tag", "version", version, "error", err)
 			os.Exit(1)
 		}
 	},
+}
+
+// revParse resolves a local revision to its full hash. It never touches the
+// network. The error carries git's stderr.
+func revParse(rev string) (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--verify", "--quiet", "--end-of-options", rev).Output()
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse %s: %w", rev, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// short abbreviates a hash for a log line; "" stays "".
+func short(hash string) string {
+	if len(hash) > 8 {
+		return hash[:8]
+	}
+	return hash
 }
 
 func init() {
