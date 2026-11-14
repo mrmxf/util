@@ -30,8 +30,18 @@ func TestPrettyWithDbgTmpHandler(t *testing.T) {
 			closer.Close()
 		})
 
+		Convey("the path is per user, so one user's file never locks out another", func() {
+			day := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+			a := slogger.DbgTmpLogPathFor("alice", day)
+			b := slogger.DbgTmpLogPathFor("b2b", day)
+			So(a, ShouldNotEqual, b)
+			So(a, ShouldEqual, filepath.Join(os.TempDir(), "clog-alice-2026-10-03.log"))
+			So(slogger.DbgTmpLogPathFor(`DOMAIN\bob`, day), ShouldEqual, filepath.Join(os.TempDir(), "clog-DOMAIN_bob-2026-10-03.log"))
+			So(filepath.Dir(slogger.DbgTmpLogPath()), ShouldEqual, os.TempDir())
+		})
+
 		Convey("creates the date-suffixed log file in os.TempDir()", func() {
-			expectedPath := filepath.Join(os.TempDir(), "clog-"+time.Now().Format("2006-01-02")+".log")
+			expectedPath := slogger.DbgTmpLogPath()
 
 			_, closer, err := slogger.NewPrettyWithDbgTmpHandler(slog.LevelInfo)
 			So(err, ShouldBeNil)
@@ -42,7 +52,7 @@ func TestPrettyWithDbgTmpHandler(t *testing.T) {
 		})
 
 		Convey("a DEBUG record appears in the file even when console level is INFO", func() {
-			logPath := filepath.Join(os.TempDir(), "clog-"+time.Now().Format("2006-01-02")+".log")
+			logPath := slogger.DbgTmpLogPath()
 
 			h, closer, err := slogger.NewPrettyWithDbgTmpHandler(slog.LevelInfo)
 			So(err, ShouldBeNil)

@@ -1204,6 +1204,12 @@ snippets:
   #   ||    |_|                |__/
   # typically used for global tool version propagation, node version etc.
   project:
+    # The bc-* workers run  eval "$(clog Source project config); $(clog Crayon)".
+    # A repo sets its own project.config (export PROJECT=... EXE=...). This
+    # default is a no-op, so a repo without one gets no "command config not
+    # found" error, and the eval is not left starting with ";" - a bash syntax
+    # error that also lost the Crayon colours.
+    config: ":"
     needs:
       golang: cat go.mod|grep '^go '|grep -oE '[0-9]\.[0-9]+\.[0-9]+'
       hugo: hugo config --format yaml|yq -r '.module.hugoversion.min'|cut -c 2-20

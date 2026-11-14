@@ -178,7 +178,7 @@ github-pages target data, per mode:
   targets:
     pages:
       kind: github-pages
-      prod: {dir: kodata, branch: gh-pages, cname: example.org}
+      prod: {dir: _clog_build/public, branch: gh-pages, cname: example.org}
 
   dir     directory to publish            required
   branch  branch to force-push to         default gh-pages

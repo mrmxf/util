@@ -154,6 +154,9 @@ GOTCHAS
   - infisical run does not mask output. Never echo secrets; on GitHub clog emits ::add-mask::.
 
 READ THE REAL OIDC CLAIMS (print claims, never the token)
+  clog CI oidc   in a CI job: the claims this job presents + the Subjects to bind for this repo
+                 on a laptop: reads every identity's bound Subject and checks it (exit 1 on a problem)
+  A failed login already names the token's sub/aud/ref. By hand:
   GitHub step (job has id-token: write):
     curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
       "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://eu.infisical.com" \
@@ -168,4 +171,5 @@ VERIFY FROM A LAPTOP (user login: infisical login --domain=<ci.infisical.domain>
                "does not have OIDC Auth attached" = step 3 not done.
   imports    : curl -sH "Authorization: Bearer $(infisical user get token --plain)" \
                  "<domain>/api/v2/secret-imports?projectId=<id>&environment=<env>&path=/<repo>" | jq '.secretImports[]|{importPath}'
+  subjects   : clog CI oidc
   local run  : clog CI run --dry-run -- clog deploy     (then without --dry-run)`

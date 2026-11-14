@@ -5,6 +5,7 @@ package ci
 
 import (
 	"crypto/sha256"
+	"errors"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // GitHub Release target data, per mode:
@@ -86,8 +88,8 @@ func deployGitHubRelease(d Deployment) error {
 	if _, err := execCommand(".", "git", "rev-parse", "-q", "--verify", "refs/tags/"+tag); err != nil {
 		return fmt.Errorf("no local tag %s - tag the release commit first", tag)
 	}
-	if _, err := execCommand(".", "git", "ls-remote", "--exit-code", "--tags", "origin", "refs/tags/"+tag); err != nil {
-		return fmt.Errorf("tag %s is not at origin - git push origin %s", tag, tag)
+	if err := remoteTagExists(tag); err != nil {
+		return err
 	}
 
 	slog.Info("github-release", "repo", repo, "tag", tag, "dir", dir, "assets", len(assets))
@@ -171,4 +173,47 @@ func sha256File(path string) (string, error) {
 		return "", fmt.Errorf("cannot hash %s: %w", path, err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// lsRemoteAttempts and retrySleep bound the origin tag check: a network blip
+// once failed a whole release at this step until it was re-run by hand.
+var (
+	lsRemoteAttempts = 4
+	retrySleep       = time.Sleep
+)
+
+// remoteTagExists asks origin for refs/tags/<tag>. Exit 2 from
+// `git ls-remote --exit-code` means origin answered and has no such tag: that
+// is final. Any other failure (DNS, TLS, a dropped connection) is retried with
+// backoff (2s, 4s, 8s) before it fails the release.
+func remoteTagExists(tag string) error {
+	var out string
+	var err error
+	for attempt := 1; attempt <= lsRemoteAttempts; attempt++ {
+		out, err = execCommand(".", "git", "ls-remote", "--exit-code", "--tags", "origin", "refs/tags/"+tag)
+		if err == nil {
+			return nil
+		}
+		if exitCode(err) == 2 {
+			return fmt.Errorf("tag %s is not at origin - git push origin %s", tag, tag)
+		}
+		if attempt < lsRemoteAttempts {
+			wait := time.Duration(1<<attempt) * time.Second
+			slog.Warn("github-release: cannot reach origin to check the tag, retrying",
+				"tag", tag, "attempt", attempt, "wait", wait, "err", err, "out", out)
+			retrySleep(wait)
+		}
+	}
+	return fmt.Errorf("cannot check tag %s at origin after %d attempts (%v: %s) - check the network and git remote, then re-run",
+		tag, lsRemoteAttempts, err, out)
+}
+
+// exitCode is a command error's exit status, or -1 when it has none (the
+// command never started, or a test double).
+func exitCode(err error) int {
+	var ec interface{ ExitCode() int }
+	if errors.As(err, &ec) {
+		return ec.ExitCode()
+	}
+	return -1
 }

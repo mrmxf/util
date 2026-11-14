@@ -18,7 +18,7 @@ import (
 //
 //	pages:
 //	  kind: github-pages
-//	  prod: {dir: kodata, branch: gh-pages, cname: example.org}
+//	  prod: {dir: _clog_build/public, branch: gh-pages, cname: example.org}
 //
 //	dir     directory to publish            (required)
 //	branch  orphan branch to force-push to  (default gh-pages)
@@ -69,9 +69,10 @@ func deployGitHubPages(d Deployment) error {
 	if err := checkPublishDir(dir); err != nil {
 		return err
 	}
-	// dir is usually relative in config ("kodata"). Everything below passes it
-	// to git as --work-tree while also running git inside it, so a relative
-	// path would be resolved twice - git would look for kodata/kodata.
+	// dir is usually relative in config ("_clog_build/public"). Everything
+	// below passes it to git as --work-tree while also running git inside it,
+	// so a relative path would be resolved twice - git would look for
+	// _clog_build/public/_clog_build/public.
 	dir, err = filepath.Abs(dir)
 	if err != nil {
 		return fmt.Errorf("cannot resolve %s: %w", dir, err)

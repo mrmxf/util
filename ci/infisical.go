@@ -38,7 +38,7 @@ func infisicalLogin(domain, identityID, jwt string) (string, error) {
 		AccessToken string `json:"accessToken"`
 	}
 	if err := doJSON(req, &out); err != nil {
-		return "", fmt.Errorf("infisical OIDC login as identity %s: %w", identityID, err)
+		return "", fmt.Errorf("infisical OIDC login as identity %s: %w %s", identityID, err, loginHint(jwt))
 	}
 	if out.AccessToken == "" {
 		return "", fmt.Errorf("infisical OIDC login as identity %s: no access token in response", identityID)

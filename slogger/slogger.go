@@ -37,7 +37,7 @@ const (
     StyleTee
     StyleJob
     StyleNats
-    StylePrettyWithDbgTmp // PrettyHandler to stderr + JSONHandler to /tmp/clog-YYYY-MM-DD.log
+    StylePrettyWithDbgTmp // PrettyHandler to stderr + JSONHandler to /tmp/clog-<user>-YYYY-MM-DD.log
     StyleCiWithDbgTmp     // PrettyWithDbgTmp with no console timestamp (CI runners stamp lines)
 )
 

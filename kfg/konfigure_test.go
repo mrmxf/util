@@ -5,6 +5,8 @@
 package kfg
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -175,6 +177,25 @@ func TestAutoMerge(t *testing.T) {
 			Convey("Then it should process the kfg section", func() {
 				// AutoMerge should not error even if files don't exist
 				So(err, ShouldBeNil)
+			})
+		})
+
+		Convey("When a merge path holds invalid YAML", func() {
+			dir := t.TempDir()
+			So(os.WriteFile(filepath.Join(dir, ".broken.yaml"), []byte("ci:\n  stack:\n    - name: x\n     type: golang\n"), 0o644), ShouldBeNil)
+			So(os.WriteFile(filepath.Join(dir, ".good.yaml"), []byte("automerge-probe: loaded\n"), 0o644), ShouldBeNil)
+			wd, _ := os.Getwd()
+			So(os.Chdir(dir), ShouldBeNil)
+			defer os.Chdir(wd) //nolint:errcheck // best-effort restore in a test
+			Raw.Set("kfg.try-paths", []string{".broken.yaml", ".missing.yaml", ".good.yaml"}) //nolint:errcheck // koanf Set on a map never fails
+
+			err := AutoMerge()
+
+			Convey("Then it fails loudly, naming the file, and still merges the others", func() {
+				So(err, ShouldNotBeNil)
+				So(err.Error(), ShouldContainSubstring, ".broken.yaml is invalid")
+				So(err.Error(), ShouldNotContainSubstring, ".missing.yaml")
+				So(Raw.String("automerge-probe"), ShouldEqual, "loaded")
 			})
 		})
 
