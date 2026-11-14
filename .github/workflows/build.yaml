@@ -4,6 +4,11 @@
 #
 #  build — callable workflow: one workflow for every stack.
 #
+#  SUPERSEDED: the maintained copy is mrmxf/clog .github/workflows/build-check.yaml
+#  (pinned @vX.Y.Z or @workflows). This one stays only for history; no repo
+#  calls it (checked 2026-11-14). Keep it in step with build-check.yaml when
+#  touching it, so a copy-paste from here is never a regression.
+#
 #  Supersedes build-hugo.yaml and build-golang.yaml, which differed only in
 #  which tools they installed and which snippets they ran. `ci.stack` now knows
 #  both, so a repo declares its stack instead of choosing a workflow by name.
@@ -122,11 +127,10 @@ jobs:
           retention-days: 2
           path: _clog_build/scan
 
-      # kodata is here because a Hugo site's publishDir is set in hugo.yaml,
-      # not by clog, so those repos still publish from outside the canonical
-      # dirs. It stays until each one moves its publishDir; the deploy job
+      # Only the canonical dirs travel from build to deploy. The deploy job
       # downloads the artifact into the repo root, so a target's `dir:` has to
-      # be inside what this uploads or the deploy finds nothing.
+      # be inside what this uploads or the deploy finds nothing: a Hugo site
+      # sets publishDir: _clog_build/public (kodata was dropped 2026-11-14).
       - name: upload artifact ${{ env.ci_artifact }}
         if: env.do_build == 'true' && env.ci_artifact != ''
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -136,7 +140,6 @@ jobs:
           path: |
             _clog_build
             _clog_deploy
-            kodata
 
       - name: notify-team (slack, HOOK_SLACK from Infisical)
         if: always() && env.do_build == 'true'
