@@ -18,6 +18,9 @@ import (
 // Run orchestrates the full install pipeline for a tool on a given platform.
 // dryRun=true resolves version + URL and logs the plan without executing anything.
 func Run(entry ToolEntry, toolName string, platform Platform, dryRun bool) error {
+	if isSelfReplace(entry) {
+		return runSelf(entry, dryRun) // clog itself: get-clog.sh's rules, not the platform table
+	}
 	pe, ok := entry.Platforms[platform]
 	if !ok {
 		return fmt.Errorf("tool %q has no recipe for platform %s", toolName, platform)

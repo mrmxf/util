@@ -3,6 +3,8 @@ tools:
     recipepath: "recipes/aws.yaml"
   caddy:
     recipepath: "recipes/caddy.yaml"
+  clog:
+    recipepath: "recipes/clog.yaml"
   curl:
     recipepath: "recipes/curl.yaml"
   docker-engine:

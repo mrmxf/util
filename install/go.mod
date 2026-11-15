@@ -29,6 +29,7 @@ require (
 	github.com/longkai/rfc7807 v1.0.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/mrmxf/util/buildinfo v0.14.0
 	github.com/mrmxf/util/check v0.11.1
 	github.com/mrmxf/util/slogger v0.11.0 // indirect
 	github.com/nats-io/nats.go v1.52.0 // indirect

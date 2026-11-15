@@ -34,8 +34,12 @@ func VerifySLSA(spec *SLSASpec, artifactPath, version, osVal, archVal string) er
 	defer cleanup()
 
 	slog.Info("verifying SLSA provenance", "artifact", artifactPath, "source-uri", spec.SourceURI)
-	return streamCmd("slsa-verifier", "verify-artifact", artifactPath,
+	args := []string{"verify-artifact", artifactPath,
 		"--provenance-path", provenancePath,
 		"--source-uri", spec.SourceURI,
-	)
+	}
+	if spec.SourceTag != "" {
+		args = append(args, "--source-tag", substituteTokens(spec.SourceTag, version, osVal, archVal))
+	}
+	return streamCmd("slsa-verifier", args...)
 }

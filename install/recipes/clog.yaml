@@ -1,0 +1,25 @@
+#  Copyright ©2017-2025  Mr MXF   info@mrmxf.com
+#  BSD-3-Clause License           https://opensource.org/license/bsd-3-clause/
+#
+# clog itself. Unlike every other recipe this has no platforms: table. The
+# self-replace strategy follows get-clog.sh (mrmxf/clog .github/actions/
+# setup-clog/get-clog.sh) step for step - see self.go - so that a laptop
+# running `clog upgrade` lands on the same binary CI bootstraps.
+#
+# install.repo is deliberately unset: the default is the repo the running clog
+# was released from, so a private edition upgrades to itself. A repo may set it
+# in .clog.yaml (install.clog.install.repo), but a value that differs from the
+# running clog's own repo is refused unless CLOG_REPO says so.
+clog:
+  description: "clog — the release .clog-version pins, replacing this binary (sha256-verified; alias: clog upgrade)"
+  check:
+    name: "clog is installed"
+    try:
+      - "clog --version >/dev/null 2>&1": truthy
+    then: 'clog Log -I "  clog is installed"'
+    else: 'clog Log -W "  clog not found — bootstrap with get-clog.sh from a mrmxf/clog release"'
+  version:
+    strategy: pin-file
+    file: .clog-version
+  install:
+    strategy: self-replace

@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/go-git/go-git/v5 v5.16.3
-	github.com/mrmxf/util/buildinfo v0.13.0
+	github.com/mrmxf/util/buildinfo v0.14.0
 	github.com/mrmxf/util/check v0.11.1
 	github.com/mrmxf/util/ci v0.13.0
 	github.com/mrmxf/util/kfg v0.11.1

@@ -31,8 +31,8 @@ var AllPlatforms = []Platform{
 
 // VersionSpec describes how to resolve the required version of a tool.
 type VersionSpec struct {
-	Strategy   string `yaml:"strategy"`              // go-mod | hugo-module | nvmrc | github-latest | github-tags | npm-latest | node-lts | pinned
-	File       string `yaml:"file,omitempty"`        // go-mod, hugo-module: path to read
+	Strategy   string `yaml:"strategy"`              // go-mod | hugo-module | nvmrc | github-latest | github-tags | npm-latest | node-lts | pinned | pin-file
+	File       string `yaml:"file,omitempty"`        // go-mod, hugo-module, nvmrc, pin-file: path to read
 	Repo       string `yaml:"repo,omitempty"`        // github-latest, github-tags: "owner/repo"
 	TagPrefix  string `yaml:"tag-prefix,omitempty"`  // github-latest, github-tags: strip from tag to form version
 	TagFilter  string `yaml:"tag-filter,omitempty"`  // github-tags: regexp; only matching tags are candidates
@@ -49,6 +49,9 @@ type VersionSpec struct {
 type SLSASpec struct {
 	URLTemplate string `yaml:"url-template"` // provenance download URL; supports {version}, {os}, {arch}
 	SourceURI   string `yaml:"source-uri"`   // expected source URI passed to slsa-verifier (e.g. github.com/aquasecurity/trivy)
+	// SourceTag, when set, is passed as --source-tag so the provenance must name
+	// this release, not merely this repo. Supports {version}, e.g. "v{version}".
+	SourceTag string `yaml:"source-tag,omitempty"`
 }
 
 // DownloadSpec describes how to fetch the tool artifact.
@@ -68,7 +71,7 @@ type DownloadSpec struct {
 
 // InstallSpec describes how to install the downloaded (or fetched) artifact.
 type InstallSpec struct {
-	Strategy string `yaml:"strategy"`          // brew-install | apt-install | dnf-install | lnx-native | go-install | npm-install | run-script | extract-tar | extract-tar-binary | install-deb | install-rpm | copy-binary
+	Strategy string `yaml:"strategy"`          // brew-install | apt-install | dnf-install | lnx-native | go-install | npm-install | run-script | extract-tar | extract-tar-binary | install-deb | install-rpm | copy-binary | self-replace
 	Package  string `yaml:"package,omitempty"` // brew-install, apt-install, dnf-install, npm-install
 	Import   string `yaml:"import,omitempty"`  // go-install: full import path@version
 	Script   string `yaml:"script,omitempty"`  // run-script: shell script body
@@ -84,6 +87,11 @@ type InstallSpec struct {
 	// node_modules/npm crash npm). Each must be at least three levels deep.
 	Clean []string `yaml:"clean,omitempty"`
 	Sudo  bool     `yaml:"sudo,omitempty"`
+
+	// self-replace (clog only): owner/repo holding the release. Leave it unset
+	// in the shipped recipe: the default is the repo the running clog was
+	// released from. See self.go.
+	Repo string `yaml:"repo,omitempty"`
 
 	// lnx-native: the tool ships its own signed apt AND dnf repos. The installer
 	// picks the apt or dnf sequence from the platform family and runs it

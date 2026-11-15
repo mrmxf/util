@@ -18,6 +18,7 @@ var (
 	genName    string
 	genTitle   string
 	genFlavour string
+	genRepo    string
 )
 
 const genHelp = `Generate build information from the state of the git repository.
@@ -33,6 +34,10 @@ Version (from git):
   N commits after one           v0.11.12+dev.N.gSHA
   uncommitted changes           ...+dirty / ....dirty
   no release tag reachable      v0.0.0+dev.N.gSHA
+
+The release repo (owner/repo) is stamped too, so clog upgrade knows where this
+binary's releases live: --repo, else $GITHUB_REPOSITORY, else the origin remote
+when it is on github.com.
 
 prod is refused unless HEAD is exactly on a release tag and the tree is clean;
 check out the release first (clog BC git checkout production). The date is the
@@ -61,8 +66,14 @@ var genBuildinfoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		// The release repo is detected unless --repo was given, so the bc-golang
+		// worker needs no new argument. --repo '' stamps none.
+		repo := genRepo
+		if !cmd.Flags().Changed("repo") {
+			repo = buildinfo.ReleaseRepo(".")
+		}
 		d, err := buildinfo.Generate(g, buildinfo.BuildOptions{
-			Mode: mode, Name: genName, Title: genTitle, Flavour: genFlavour, Branch: currentBranch(),
+			Mode: mode, Name: genName, Title: genTitle, Flavour: genFlavour, Branch: currentBranch(), Repo: repo,
 		})
 		if err != nil {
 			return err
@@ -108,4 +119,5 @@ func init() {
 	genBuildinfoCmd.Flags().StringVar(&genName, "name", "", "command name (default: the built module's name)")
 	genBuildinfoCmd.Flags().StringVar(&genTitle, "title", "", "printable name (default: the built module's name)")
 	genBuildinfoCmd.Flags().StringVar(&genFlavour, "flavour", "", "build edition shown as +flavour, e.g. plain | mrmxf")
+	genBuildinfoCmd.Flags().StringVar(&genRepo, "repo", "", "GitHub owner/repo the binary is released from (default: $GITHUB_REPOSITORY, else the origin remote)")
 }

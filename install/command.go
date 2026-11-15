@@ -54,8 +54,31 @@ func init() {
 	Command.Flags().StringVar(&platformFlag, "platform", "", "override platform detection (for testing)")
 	Command.Flags().StringVar(&useFlag, "use", "", "install this version instead of the recipe's: a version number, latest or lts")
 	Command.Flags().StringVar(&atFlag, "at", "", "alias for --use")
+	Command.Flags().BoolVar(&pinFlag, "pin", false, "clog only: write the installed version into .clog-version")
 	Command.PersistentFlags().BoolVar(&Verbose, "verbose", false, "log the resolved configuration and its source")
 	Command.AddCommand(haveCmd, listCmd)
+
+	// Upgrade shares Install's flag variables, so the two cannot drift apart.
+	UpgradeCommand.Flags().BoolVar(&dryRunFlag, "dry-run", false, "resolve version, asset and URL; print the plan; do not download")
+	UpgradeCommand.Flags().StringVar(&useFlag, "use", "", "install this version instead of the pin: a version number, latest or lts")
+	UpgradeCommand.Flags().StringVar(&atFlag, "at", "", "alias for --use")
+	UpgradeCommand.Flags().BoolVar(&pinFlag, "pin", false, "write the installed version into .clog-version")
+	UpgradeCommand.Flags().BoolVar(&Verbose, "verbose", false, "log the resolved configuration and its source")
+}
+
+// UpgradeCommand is `clog Upgrade` (and, by case resolution, `clog upgrade`):
+// exactly `clog Install clog`. A cobra alias cannot express it, because
+// Install takes the tool name as an argument.
+var UpgradeCommand = &cobra.Command{
+	Use:           "Upgrade",
+	Short:         "install the clog this repo pins (same as clog Install clog)",
+	Long:          upgradeHelp,
+	Args:          cobra.NoArgs,
+	SilenceErrors: true,
+	SilenceUsage:  true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runInstall(cmd, []string{"clog"})
+	},
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
@@ -69,9 +92,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	if recipeFlag {
 		return printRecipe(toolName, sourcePath, entry)
 	}
-
-	platform, err := resolvePlatform()
-	if err != nil {
+	if pinFlag && !isSelfReplace(entry) {
+		err := fmt.Errorf("--pin applies only to clog Install clog (clog upgrade); %s has no pin file", toolName)
 		slog.Error(err.Error())
 		return err
 	}
@@ -79,6 +101,22 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	dryRun, dryRunSource := isDryRun()
 	if dryRun {
 		vlog("dry-run enabled", "source", dryRunSource)
+	}
+
+	// clog itself goes by get-clog.sh's rules, which map GOOS/GOARCH directly:
+	// it must not fail on a Linux the distro-aware platform table does not know.
+	if isSelfReplace(entry) {
+		if err := runSelf(entry, dryRun); err != nil {
+			slog.Error(err.Error())
+			return err
+		}
+		return nil
+	}
+
+	platform, err := resolvePlatform()
+	if err != nil {
+		slog.Error(err.Error())
+		return err
 	}
 
 	if err := Run(entry, toolName, platform, dryRun); err != nil {

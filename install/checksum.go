@@ -48,7 +48,16 @@ func lookupChecksum(checksumsURL, name string) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("checksums: GET %s: HTTP %d", checksumsURL, resp.StatusCode)
 	}
-	sc := bufio.NewScanner(resp.Body)
+	want, err := findChecksum(resp.Body, name)
+	if err != nil {
+		return "", fmt.Errorf("checksums: %s: %w", checksumsURL, err)
+	}
+	return want, nil
+}
+
+// findChecksum returns the hex digest a sha256sum-format listing gives name.
+func findChecksum(r io.Reader, name string) (string, error) {
+	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		fields := strings.Fields(sc.Text())
 		if len(fields) != 2 {
@@ -59,9 +68,9 @@ func lookupChecksum(checksumsURL, name string) (string, error) {
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return "", fmt.Errorf("checksums: read %s: %w", checksumsURL, err)
+		return "", fmt.Errorf("read: %w", err)
 	}
-	return "", fmt.Errorf("checksums: %s lists no entry for %s", checksumsURL, name)
+	return "", fmt.Errorf("lists no entry for %s", name)
 }
 
 // fileSHA256 returns the hex SHA-256 of the file at path.

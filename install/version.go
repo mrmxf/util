@@ -59,6 +59,8 @@ func resolveOnce(spec *VersionSpec) (string, error) {
 		return resolveNvmrc(spec)
 	case "pinned":
 		return resolvePinned(spec)
+	case "pin-file":
+		return resolvePinFile(spec)
 	default:
 		return "", fmt.Errorf("unknown version strategy %q", spec.Strategy)
 	}
