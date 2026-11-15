@@ -82,6 +82,7 @@ type BuildOptions struct {
 	Title   string // printable name; spaces become _
 	Branch  string // dev builds: shown as the version suffix
 	Flavour string // build edition, e.g. plain | mrmxf; shown as +flavour
+	Repo    string // GitHub owner/repo the binary is released from; see ReleaseRepo
 }
 
 // Generate makes the linker data for a build. prod is refused unless HEAD is
@@ -113,6 +114,7 @@ func Generate(g GitState, o BuildOptions) (LinkerDataJSON, error) {
 		AppName:  o.Name,
 		AppTitle: strings.ReplaceAll(o.Title, " ", "_"),
 		Flavour:  o.Flavour,
+		Repo:     o.Repo,
 	}
 	if o.Mode == "dev" && !strings.Contains(d.Tag, "+") {
 		d.Suffix = o.Branch // on a tag but a dev build: say which branch

@@ -24,6 +24,12 @@ type LinkerDataJSON struct {
 	// ways, whereas here the edition IS which module you built, so it comes
 	// through the linker like the name and title.
 	Flavour string `json:"flavour"`
+	// Repo is the GitHub owner/repo whose releases this binary came from, e.g.
+	// mrmxf/clog. `clog upgrade` installs from here by default, so a private
+	// edition (clog-mrmxf) upgrades to itself and not to the public one.
+	// Empty for a binary built without it; omitted from the JSON then, so the
+	// linker data of older builds is unchanged.
+	Repo string `json:"repo,omitempty"`
 }
 
 type VersionInfo struct {
@@ -40,6 +46,7 @@ type VersionInfo struct {
 	SuffixLong      string `json:"semverSuffix"` // from linker
 	SuffixShort     string // made in cleanLinkerData()
 	Flavour         string // build edition from the linker, e.g. basic | mrmxf
+	Repo            string // GitHub owner/repo the binary is released from, or ""
 	Tag             string //from releases.yaml
 	Err             error  //if an error occurs during init()
 }

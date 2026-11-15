@@ -93,6 +93,7 @@ func ParseLinkerJSON(semVerJSON string) (VersionInfo, bool, error) {
 		OS:       runtime.GOOS,
 		Date:     data.Date,
 		Flavour:  data.Flavour,
+		Repo:     data.Repo,
 	}
 
 	// Calculate suffix fields
